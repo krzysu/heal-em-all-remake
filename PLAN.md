@@ -85,10 +85,15 @@ ported from the original scene scripts (they hardcoded their entities), levels
 3-6 are read from the TMX object groups exactly like `addObjectsToStage` did.
 
 ### Phase 3 — Combat & enemy variety (next)
-Weapon variants (spread, charge, melee), hit-stop/shake/particles, the
-runner/brute/spitter/screamer archetypes, spawn tables per act, and Zombie Mode:
-today reaching zero lives goes straight to Game Over, but the original turned
-the player into a ZombiePlayer. Reinstate that transformation properly.
+Shipped: Zombie Mode (zero lives turns the doctor into a ZombiePlayer — slower,
+single jump, melee only, infects humans, must fall off the map to recover),
+combat juice (hit-stop via `World.timeScale`, camera shake, muzzle flash,
+particle bursts, HUD avatar swap) and four enemy archetypes — walker, runner,
+brute (armoured, 3 hits) and spitter (ranged) — mixed per level in
+`src/levels/levels.ts`.
+
+Still to do: weapon variants (spread, charge, melee) and hit reactions for the
+player, plus boss encounters.
 
 ### Phase 4 — Progression & meta
 Level-select upgrades: star scoring, unlocks and the summary/star row are in;
@@ -145,11 +150,12 @@ src/
     HudScene.ts      Overlay: counters + doctor's info line
     LevelSummaryScene.ts / GameOverScene.ts / EndScene.ts
   entities/
-    Player.ts        Movement, double jump, gun, invincibility
-    Zombie.ts        Patrol + line-of-sight AI, heal/die
+    Player.ts        Movement, double jump, gun, invincibility, zombie mode
+    Zombie.ts        Walker / runner / brute / spitter AI, heal or die
     Human.ts         Reverts when touched by a zombie
     DeadZombie.ts    Fallen zombie that was once human
     Bullet.ts        Healing round with range + waste tracking
+    Spit.ts          Spitter projectile that costs the player a life
     Item.ts          Key / door / gun / health / exit sign
 ```
 

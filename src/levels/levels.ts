@@ -18,9 +18,12 @@ export interface Point {
   y: number
 }
 
+export type EnemyArchetype = 'walker' | 'runner' | 'brute' | 'spitter'
+
 export interface ZombieSpawn extends Point {
   /** Original quirk: `startLeft` true actually means "walk right first". */
   startLeft?: boolean
+  archetype?: EnemyArchetype
 }
 
 export type ItemKind = 'key' | 'door' | 'gun' | 'health' | 'exit_sign'
@@ -120,6 +123,52 @@ function spawnsFromObjects(tmx: TmxMap): { zombies: ZombieSpawn[]; items: ItemSp
 export function getLevelSpawns(level: number, tmx: TmxMap): LevelSpawns {
   const player = PLAYER_START[level] ?? tilePos(3, 9)
   const override = SPAWN_OVERRIDES[level]
-  if (override) return { player, ...override }
-  return { player, ...spawnsFromObjects(tmx) }
+  const base = override ?? spawnsFromObjects(tmx)
+
+  // Copy the spawns so the archetype assignment never mutates the tables above.
+  const zombies = base.zombies.map((spawn) => ({ ...spawn }))
+  const archetypes = archetypeList(level, zombies.length)
+  zombies.forEach((spawn, index) => {
+    spawn.archetype = archetypes[index] ?? 'walker'
+  })
+
+  return { player, zombies, items: base.items.map((item) => ({ ...item })) }
+}
+
+/**
+ * Enemy mix per level, tuned for escalating action: level 1 stays a gentle
+ * tutorial, later levels fold in runners, armoured brutes and ranged spitters.
+ * Counts sum to each level's zombie total.
+ */
+const LEVEL_MIX: Record<number, Partial<Record<EnemyArchetype, number>>> = {
+  1: { walker: 1 },
+  2: { walker: 3, runner: 1 },
+  3: { walker: 4, runner: 2, brute: 1, spitter: 1 },
+  4: { walker: 6, runner: 3, brute: 2, spitter: 2 },
+  5: { walker: 9, runner: 5, brute: 3, spitter: 2 },
+  6: { walker: 10, runner: 6, brute: 4, spitter: 3 },
+}
+
+const MIX_ORDER: EnemyArchetype[] = ['walker', 'runner', 'brute', 'spitter']
+
+/** Round-robins the mix so archetypes are spread across the level, not clumped. */
+function archetypeList(level: number, count: number): EnemyArchetype[] {
+  const mix = LEVEL_MIX[level]
+  const list: EnemyArchetype[] = []
+  if (!mix) return new Array<EnemyArchetype>(count).fill('walker')
+
+  const buckets = MIX_ORDER.map((kind) => ({ kind, remaining: mix[kind] ?? 0 }))
+  while (list.length < count) {
+    let added = false
+    for (const bucket of buckets) {
+      if (bucket.remaining <= 0 || list.length >= count) continue
+      list.push(bucket.kind)
+      bucket.remaining -= 1
+      added = true
+    }
+    if (!added) break
+  }
+
+  while (list.length < count) list.push('walker')
+  return list
 }

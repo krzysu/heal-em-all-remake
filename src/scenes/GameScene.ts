@@ -6,6 +6,7 @@ import { Zombie } from '../entities/Zombie'
 import { Human } from '../entities/Human'
 import { DeadZombie } from '../entities/DeadZombie'
 import { Bullet } from '../entities/Bullet'
+import { Spit } from '../entities/Spit'
 import { Item } from '../entities/Item'
 import { parseTmx, toTileIndices, type TmxMap } from '../levels/tmx'
 import { getLevelSpawns, type ItemSpawn, type Point, type ZombieSpawn } from '../levels/levels'
@@ -38,6 +39,7 @@ export class GameScene extends Phaser.Scene {
   private humans: Human[] = []
   private deadZombies: DeadZombie[] = []
   private bullets: Bullet[] = []
+  private spits: Spit[] = []
   private items: Item[] = []
   private door: Item | null = null
 
@@ -116,6 +118,7 @@ export class GameScene extends Phaser.Scene {
     this.updateItems()
     this.updateZombies(time)
     this.updateBullets()
+    this.updateSpits()
     this.updateHumans()
     this.handleDoor(jumpPressed)
     this.checkFallOut(time)
@@ -129,6 +132,7 @@ export class GameScene extends Phaser.Scene {
     this.humans = []
     this.deadZombies = []
     this.bullets = []
+    this.spits = []
     this.items = []
     this.door = null
     this.nextFireAt = 0
@@ -228,6 +232,7 @@ export class GameScene extends Phaser.Scene {
     })
     zombie.on('died', () => this.onZombieDown(zombie))
     zombie.on('alert', () => this.sound.play('zombieNotice', { volume: 0.6 }))
+    zombie.on('spit', (direction: 1 | -1) => this.spawnSpit(zombie, direction))
 
     this.refreshZombieCount()
     return zombie
@@ -285,6 +290,18 @@ export class GameScene extends Phaser.Scene {
   private refreshZombieCount(): void {
     this.run.zombiesRemaining = this.zombies.length
     bus.emit(Events.zombiesChanged, this.zombies.length)
+  }
+
+  private spawnSpit(zombie: Zombie, direction: 1 | -1): void {
+    const spit = new Spit(this, zombie.x + direction * 22, zombie.y + 3, direction)
+    this.spits.push(spit)
+    this.burst(zombie.x + direction * 22, zombie.y + 3, 0x9be86b, 5)
+
+    const solidCollider = this.physics.add.collider(spit, this.solids, () => spit.dissipate())
+    spit.once(Phaser.GameObjects.Events.DESTROY, () => {
+      this.physics.world.removeCollider(solidCollider)
+      this.spits = this.spits.filter((entry) => entry !== spit)
+    })
   }
 
   // ---------------------------------------------------------------- input ---
@@ -394,6 +411,18 @@ export class GameScene extends Phaser.Scene {
         break
       }
       if (hit) continue
+    }
+  }
+
+  private updateSpits(): void {
+    if (this.player.isZombie) return
+
+    for (const spit of [...this.spits]) {
+      if (!spit.active) continue
+      if (!this.physics.overlap(this.player, spit)) continue
+
+      spit.dissipate()
+      this.hurtPlayer('contact')
     }
   }
 
