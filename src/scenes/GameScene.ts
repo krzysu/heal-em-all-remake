@@ -35,6 +35,8 @@ export class GameScene extends Phaser.Scene {
   private keyD!: Phaser.Input.Keyboard.Key
   private keyW!: Phaser.Input.Keyboard.Key
   private keyFire!: Phaser.Input.Keyboard.Key
+  private keyFireZ!: Phaser.Input.Keyboard.Key
+  private keyX!: Phaser.Input.Keyboard.Key
 
   private zombies: Zombie[] = []
   private humans: Human[] = []
@@ -106,7 +108,9 @@ export class GameScene extends Phaser.Scene {
     const jumpPressed = this.jumpQueued
     this.jumpQueued = false
 
-    const jumpHeld = this.cursors.up.isDown || this.cursors.space.isDown || this.keyW.isDown
+    // Original jump inputs are up / X ('action'); space fires, so it must not
+    // also count as held-jump or firing would siphon jump height.
+    const jumpHeld = this.cursors.up.isDown || this.keyX.isDown || this.keyW.isDown
 
     this.player.move(
       {
@@ -331,14 +335,18 @@ export class GameScene extends Phaser.Scene {
     this.keyA = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A)
     this.keyD = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D)
     this.keyW = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W)
-    this.keyFire = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X)
+    this.keyX = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X)
+    // Original Quintus bindings: up = 'up', X = 'action' (both jump) and
+    // space/Z = 'fire'. Space therefore shoots, not jumps. WASD is an extra.
+    this.keyFire = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
+    this.keyFireZ = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z)
 
     // Queue the press from the event so a tap between two frames is never lost.
     const queueJump = (): void => {
       this.jumpQueued = true
     }
     keyboard.on('keydown-UP', queueJump)
-    keyboard.on('keydown-SPACE', queueJump)
+    keyboard.on('keydown-X', queueJump)
     keyboard.on('keydown-W', queueJump)
 
     keyboard.on('keydown-ESC', () => this.scene.start('LevelSelect'))
@@ -356,7 +364,7 @@ export class GameScene extends Phaser.Scene {
 
   private handleWeapon(time: number): void {
     if (!this.player.armed || this.player.isZombie) return
-    if (!this.keyFire.isDown || time < this.nextFireAt) return
+    if (!(this.keyFire.isDown || this.keyFireZ.isDown) || time < this.nextFireAt) return
 
     if (this.run.bullets <= 0) {
       this.nextFireAt = time + TUNING.fireCooldownMs
