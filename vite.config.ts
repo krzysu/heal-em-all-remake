@@ -6,6 +6,8 @@ export default defineConfig({
   server: {
     host: true,
     port: 8080,
+    // Fixed port: the documented URL must not silently move.
+    strictPort: true,
     open: true,
   },
   build: {

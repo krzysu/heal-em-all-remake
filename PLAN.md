@@ -61,7 +61,7 @@ remaster keeps the identity but raises the action ceiling.
 | Levels | Tiled maps; the original `.tmx` is parsed at runtime (no resave) |
 | Rendering | `RESIZE` scale mode, world drawn 1:1 like the original |
 | Audio | Phaser Web Audio Sound Manager |
-| State | `src/state/GameState.ts` singleton + `localStorage` |
+| State | `src/state/store.ts` (pure) + `src/state/GameState.ts` (Phaser bus) |
 | Art atlas | Keep hand-made sheets; adapter converts legacy JSON → Phaser atlas |
 
 ## Migration phases
@@ -138,8 +138,9 @@ cross-browser (Safari/iOS) QA, static deploy.
   between two frames is dropped. Gameplay presses are queued from `keydown-*`
   events in `GameScene.bindInput()`.
 - Levels 1-2 hardcoded their entities in the original scene scripts, so they
-  keep explicit spawn tables; levels 3-6 read the TMX object groups. The legacy
-  random key/door layouts in levels 3 and 5 are currently fixed to one variant.
+  keep explicit spawn tables; levels 3-6 read the TMX object groups. Level 5's
+  four mirrored key/door/sign layouts are ported; level 3's two-way key/door
+  random is still fixed to one variant.
 - Original `Background` sprite read an undefined asset — dead code, dropped.
 - `localStorage` keys reused for save compatibility: `zombieGame:availableLevel`,
   `zombieGame:levelProgress`.
@@ -150,7 +151,15 @@ cross-browser (Safari/iOS) QA, static deploy.
 src/
   main.ts            Phaser game bootstrap + scene list (+ dev-only window.game)
   config.ts          Dimensions, physics, asset paths, tuning constants
-  state/GameState.ts Progress + run state + event bus
+  state/
+    store.ts         Progress + run state (Phaser-free, unit tested)
+    GameState.ts     Event bus + re-export of the store
+  assets/
+    legacyAtlas.ts   Legacy atlas JSON -> Phaser frames ("<name>:<index>")
+    animations.ts    Animations ported from the original definitions
+  ui/
+    buttons.ts       Shared text button factory
+    layout.ts        Design-space camera + backdrop helpers for menu scenes
   levels/
     tmx.ts           Runtime TMX -> Phaser tilemap parser
     levels.ts        Per-level player start + spawn tables
