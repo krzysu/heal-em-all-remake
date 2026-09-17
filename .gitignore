@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+.vite
+*.local
+.DS_Store
+*.log
+
+# Playwright MCP output (screenshots, console logs)
+.playwright-mcp

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#3c4556" />
+    <meta
+      name="description"
+      content="Heal'em All — there's a cure for zombies. A remastered HTML5 action platformer."
+    />
+    <title>Heal'em All</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Boogaloo&family=Jolly+Lodger&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #3c4556;
+        overflow: hidden;
+        font-family: 'Boogaloo', Arial, sans-serif;
+      }
+      #game {
+        width: 100%;
+        height: 100%;
+      }
+      #game canvas {
+        display: block;
+        touch-action: none;
+      }
+      #boot {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: #f2da38;
+        font-family: 'Jolly Lodger', cursive;
+        font-size: 48px;
+        letter-spacing: 2px;
+        background: #3c4556;
+        transition: opacity 0.3s ease;
+      }
+      #boot.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <div id="boot">Heal'em All</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
