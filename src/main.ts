@@ -17,8 +17,11 @@ const config: Phaser.Types.Core.GameConfig = {
   width: GAME_WIDTH,
   height: GAME_HEIGHT,
   backgroundColor: COLORS.bg,
-  pixelArt: true,
-  roundPixels: true,
+  // The original drew the world 1:1 at device pixel ratio 1 with smoothing on:
+  // its art is vector-ish and its UI is web fonts, so nearest-neighbour sampling
+  // made the remaster look harsher than the source rather than sharper.
+  pixelArt: false,
+  roundPixels: false,
   title: "Heal'em All",
   version: '0.1.0',
   scale: {

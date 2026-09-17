@@ -29,8 +29,9 @@ export class PreloadScene extends Phaser.Scene {
   private queueAssets(): void {
     const { images, atlases, audio } = ASSETS
 
-    // Background is stretched as a tile sprite, not used as a sprite frame.
+    // Backgrounds are stretched as images/tile sprites, never used as frames.
     this.load.image('background', `${ASSET_BASE}/${images.background}`)
+    this.load.image('bg', `${ASSET_BASE}/${images.bg}`)
 
     // The tile sheet is the one sheet we want sliced on load.
     this.load.spritesheet('map_tiles', `${ASSET_BASE}/${images.mapTiles}`, {
@@ -39,7 +40,7 @@ export class PreloadScene extends Phaser.Scene {
     })
 
     for (const [key, path] of Object.entries(images)) {
-      if (key === 'background' || key === 'mapTiles') continue
+      if (key === 'background' || key === 'bg' || key === 'mapTiles') continue
       this.load.image(key, `${ASSET_BASE}/${path}`)
     }
 

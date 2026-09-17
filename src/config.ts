@@ -52,7 +52,10 @@ export const ASSETS = {
     bullet: 'images/bullet.png',
     mapTiles: 'images/map_tiles.png',
     gradientTop: 'images/gradient-top.png',
+    /** Blurred backdrop inside a level, from the original level tilesets. */
     background: 'images/bg-blured.jpg',
+    /** Crisp graveyard art the original used as the page background. */
+    bg: 'images/bg.gif',
   },
   /** Legacy hand-authored frame atlases (see assets/legacyAtlas.ts). */
   atlases: {

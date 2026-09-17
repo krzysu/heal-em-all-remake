@@ -344,7 +344,6 @@ export class GameScene extends Phaser.Scene {
     keyboard.on('keydown-ESC', () => this.scene.start('LevelSelect'))
     keyboard.on('keydown-R', () => this.scene.restart({ level: this.level }))
   }
-
   private publishRunState(): void {
     bus.emit(Events.livesChanged, this.run.lives)
     bus.emit(Events.bulletsChanged, this.run.bullets)
