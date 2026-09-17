@@ -66,6 +66,9 @@ remaster keeps the identity but raises the action ceiling.
 
 ## Migration phases
 
+Quality gates (typecheck, lint, format, tests, knip, build) are documented in
+`AGENTS.md`; run `pnpm check` before calling a change done.
+
 ### Phase 1 — Scaffold ✅ (this project)
 Vite + TS + Phaser 4 project, asset pipeline, scene skeleton, state store,
 boot/preload/start/level-select flows running, HUD and level scenes stubbed.
