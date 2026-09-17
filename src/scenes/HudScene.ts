@@ -25,7 +25,7 @@ const KEY_GAP = 34
 interface Counter {
   container: Phaser.GameObjects.Container
   icon: Phaser.GameObjects.Image
-  text?: Phaser.GameObjects.Text
+  text?: Phaser.GameObjects.Text | undefined
   iconGap: number
   /** The zombie head sits outside the number's container, as in the original. */
   standaloneIcon: boolean
@@ -36,7 +36,7 @@ export class HudScene extends Phaser.Scene {
   private avatar!: Phaser.GameObjects.Image
   private bubble!: Phaser.GameObjects.Graphics
   private bubbleText!: Phaser.GameObjects.Text
-  private infoFade?: Phaser.Tweens.Tween
+  private infoFade?: Phaser.Tweens.Tween | undefined
 
   private enemiesCounter!: Counter
   private bulletsCounter!: Counter
@@ -44,7 +44,7 @@ export class HudScene extends Phaser.Scene {
   private keyCounter!: Counter
   private pauseButton!: Phaser.GameObjects.Image
   private backButton!: Phaser.GameObjects.Image
-  private pauseOverlay?: Phaser.GameObjects.Container
+  private pauseOverlay?: Phaser.GameObjects.Container | undefined
   private paused = false
 
   private lives = 3
@@ -81,10 +81,12 @@ export class HudScene extends Phaser.Scene {
       })
       .setOrigin(0, 0.5)
 
-    this.enemiesCounter = this.makeCounter('hud_zombie:0', COLORS.accent, 0, true)
+    this.enemiesCounter = this.makeCounter('hud_zombie:0', COLORS.accent, 0, {
+      standaloneIcon: true,
+    })
     this.bulletsCounter = this.makeCounter('hud_bullets:0', COLORS.title, 12)
     this.healthCounter = this.makeCounter('hud_health:0', COLORS.danger, 6)
-    this.keyCounter = this.makeCounter('hud_key_empty:0', COLORS.accent, 0)
+    this.keyCounter = this.makeCounter('hud_key_empty:0', COLORS.accent, 0, { withText: false })
     this.pauseButton = this.createIconButton('hud_pause_button:0', () => this.togglePause())
     this.backButton = this.createIconButton('hud_back_button:0', () => this.leaveLevel())
 
@@ -115,23 +117,36 @@ export class HudScene extends Phaser.Scene {
 
   // --------------------------------------------------------------- layout ---
 
-  private makeCounter(frame: string, color: string, iconGap: number, standaloneIcon = false): Counter {
+  private makeCounter(
+    frame: string,
+    color: string,
+    iconGap: number,
+    options: { standaloneIcon?: boolean; withText?: boolean } = {},
+  ): Counter {
+    const { standaloneIcon = false, withText = true } = options
     const icon = this.add.image(0, 0, 'hud', frame)
     const container = this.add.container(0, CENTER_Y, standaloneIcon ? [] : [icon])
-    const counter: Counter = { container, icon, iconGap, standaloneIcon }
+    const counter: Counter = { container, icon, iconGap, standaloneIcon, text: undefined }
 
-    if (iconGap > 0) {
+    if (withText) {
       counter.text = this.add
-        .text(-(icon.width / 2) - iconGap, 0, '0', {
+        .text(0, 0, '0', {
           fontFamily: FONTS.body,
           fontSize: `${NUMBER_SIZE}px`,
           color,
         })
         .setOrigin(0.5)
       container.add(counter.text)
+      this.layoutCounterContent(counter)
     }
 
     return counter
+  }
+
+  /** The number sits just left of its icon, as in the original counters. */
+  private layoutCounterContent(counter: Counter): void {
+    if (!counter.text || counter.standaloneIcon) return
+    counter.text.setX(-(counter.icon.width / 2) - counter.iconGap - counter.text.width / 2)
   }
 
   private createIconButton(frame: string, onClick: () => void): Phaser.GameObjects.Image {
@@ -157,7 +172,10 @@ export class HudScene extends Phaser.Scene {
     this.pauseButton.setPosition(width - 30, 110)
     this.backButton.setPosition(width - 30, 170)
     if (this.enemiesCounter.standaloneIcon) {
-      this.enemiesCounter.icon.setPosition(width - this.enemiesCounter.icon.width / 2, CENTER_Y - 0.5)
+      this.enemiesCounter.icon.setPosition(
+        width - this.enemiesCounter.icon.width / 2,
+        CENTER_Y - 0.5,
+      )
     }
     this.enemiesCounter.container.setPosition(width - 98, CENTER_Y)
 
@@ -182,7 +200,6 @@ export class HudScene extends Phaser.Scene {
     this.layoutBubble()
     this.layoutPauseOverlay()
   }
-
   private layoutBubble(): void {
     const text = this.bubbleText.text
     const width = this.bubbleText.width + BUBBLE_PADDING.x * 2
@@ -205,6 +222,10 @@ export class HudScene extends Phaser.Scene {
     this.healthCounter.text?.setText(String(this.lives))
     this.keyCounter.icon.setFrame(this.hasKey ? 'hud_key_collected:0' : 'hud_key_empty:0')
     this.healthCounter.icon.setFrame(this.lives <= 1 ? 'hud_health_half:0' : 'hud_health:0')
+    // Digits change the counter width, so re-centre the numbers before chaining.
+    this.layoutCounterContent(this.enemiesCounter)
+    this.layoutCounterContent(this.bulletsCounter)
+    this.layoutCounterContent(this.healthCounter)
     this.layout()
   }
 
@@ -246,7 +267,9 @@ export class HudScene extends Phaser.Scene {
   private onPlayerMode(mode: 'doctor' | 'zombie'): void {
     const zombie = mode === 'zombie'
     this.avatar.setFrame(zombie ? 'hud_zombie_player:0' : 'hud_player:0')
-    this.healthCounter.icon.setFrame(zombie || this.lives <= 1 ? 'hud_health_half:0' : 'hud_health:0')
+    this.healthCounter.icon.setFrame(
+      zombie || this.lives <= 1 ? 'hud_health_half:0' : 'hud_health:0',
+    )
   }
 
   // ----------------------------------------------------------------- menu ---
