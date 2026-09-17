@@ -51,7 +51,7 @@ export class GameScene extends Phaser.Scene {
   private finished = false
   private jumpQueued = false
   private music?: Phaser.Sound.BaseSound
-  private zombieMusic?: Phaser.Sound.BaseSound
+  private zombieMusic?: Phaser.Sound.BaseSound | undefined
 
   constructor() {
     super('Game')
@@ -106,8 +106,7 @@ export class GameScene extends Phaser.Scene {
     const jumpPressed = this.jumpQueued
     this.jumpQueued = false
 
-    const jumpHeld =
-      this.cursors.up.isDown || this.cursors.space.isDown || this.keyW.isDown
+    const jumpHeld = this.cursors.up.isDown || this.cursors.space.isDown || this.keyW.isDown
 
     this.player.move(
       {
@@ -391,7 +390,7 @@ export class GameScene extends Phaser.Scene {
   private updateItems(): void {
     if (this.finished || this.player.isZombie) return
 
-    for (const item of [...this.items]) {
+    for (const item of this.items) {
       if (!item.active || item.kind === 'door' || item.kind === 'exit_sign') continue
       if (this.physics.overlap(this.player, item)) this.collectItem(item)
     }
@@ -415,7 +414,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateBullets(): void {
-    for (const bullet of [...this.bullets]) {
+    for (const bullet of this.bullets) {
       if (!bullet.active) continue
 
       let hit = false
@@ -435,7 +434,7 @@ export class GameScene extends Phaser.Scene {
   private updateSpits(): void {
     if (this.player.isZombie) return
 
-    for (const spit of [...this.spits]) {
+    for (const spit of this.spits) {
       if (!spit.active) continue
       if (!this.physics.overlap(this.player, spit)) continue
 

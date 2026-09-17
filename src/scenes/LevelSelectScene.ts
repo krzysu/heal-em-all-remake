@@ -67,7 +67,9 @@ export class LevelSelectScene extends Phaser.Scene {
       const spacing = 22
       const firstX = x - ((stars - 1) * spacing) / 2
       for (let i = 0; i < stars; i++) {
-        this.add.image(firstX + i * spacing, y + 34, 'others', 'ui_level_score_small:0').setScale(0.6)
+        this.add
+          .image(firstX + i * spacing, y + 34, 'others', 'ui_level_score_small:0')
+          .setScale(0.6)
       }
     }
 

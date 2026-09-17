@@ -37,11 +37,16 @@ export class StartScene extends Phaser.Scene {
     this.input.keyboard?.once('keydown-SPACE', () => this.scene.start('LevelSelect'))
 
     this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 22, 'A remaster of the 2013 HTML5 game by Kris Urbas & Paweł Madeja', {
-        fontFamily: FONTS.body,
-        fontSize: '13px',
-        color: COLORS.muted,
-      })
+      .text(
+        GAME_WIDTH / 2,
+        GAME_HEIGHT - 22,
+        'A remaster of the 2013 HTML5 game by Kris Urbas & Paweł Madeja',
+        {
+          fontFamily: FONTS.body,
+          fontSize: '13px',
+          color: COLORS.muted,
+        },
+      )
       .setOrigin(0.5)
   }
 }

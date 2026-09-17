@@ -1,12 +1,5 @@
 import Phaser from 'phaser'
-import {
-  ASSETS,
-  ASSET_BASE,
-  COLORS,
-  FONTS,
-  TILE_SIZE,
-  TOTAL_LEVELS,
-} from '../config'
+import { ASSETS, ASSET_BASE, COLORS, FONTS, TILE_SIZE, TOTAL_LEVELS } from '../config'
 import { registerLegacyAtlas } from '../assets/legacyAtlas'
 import { registerAnimations } from '../assets/animations'
 import { screenSize } from '../ui/layout'

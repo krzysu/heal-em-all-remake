@@ -40,7 +40,7 @@ export interface LevelSpawns {
 }
 
 /** Mirrors the original `Q.tilePos(col, row)`: centre of a tile, supports .5. */
-export function tilePos(col: number, row: number): Point {
+function tilePos(col: number, row: number): Point {
   return { x: col * TILE_SIZE + TILE_SIZE / 2, y: row * TILE_SIZE + TILE_SIZE / 2 }
 }
 
@@ -86,24 +86,49 @@ const SPAWN_OVERRIDES: Record<number, { zombies: ZombieSpawn[]; items: ItemSpawn
  * always added two more health pickups. Ported from `level5.coffee`.
  */
 const LEVEL5_LAYOUTS: { door: Point; sign: Point; key: Point; health: Point[] }[] = [
-  { door: tilePos(50, 3), sign: tilePos(48, 3), key: tilePos(49.5, 39), health: [tilePos(5, 21), tilePos(94, 21)] },
-  { door: tilePos(49, 39), sign: tilePos(51, 39), key: tilePos(49.5, 3), health: [tilePos(5, 21), tilePos(94, 21)] },
-  { door: tilePos(4, 21), sign: tilePos(6, 21), key: tilePos(94, 21), health: [tilePos(49.5, 39), tilePos(49.5, 3)] },
-  { door: tilePos(95, 21), sign: tilePos(93, 21), key: tilePos(5, 21), health: [tilePos(49.5, 39), tilePos(49.5, 3)] },
+  {
+    door: tilePos(50, 3),
+    sign: tilePos(48, 3),
+    key: tilePos(49.5, 39),
+    health: [tilePos(5, 21), tilePos(94, 21)],
+  },
+  {
+    door: tilePos(49, 39),
+    sign: tilePos(51, 39),
+    key: tilePos(49.5, 3),
+    health: [tilePos(5, 21), tilePos(94, 21)],
+  },
+  {
+    door: tilePos(4, 21),
+    sign: tilePos(6, 21),
+    key: tilePos(94, 21),
+    health: [tilePos(49.5, 39), tilePos(49.5, 3)],
+  },
+  {
+    door: tilePos(95, 21),
+    sign: tilePos(93, 21),
+    key: tilePos(5, 21),
+    health: [tilePos(49.5, 39), tilePos(49.5, 3)],
+  },
 ]
 
 const LEVEL5_BONUS_HEALTH = [tilePos(4.5, 6), tilePos(94.5, 7)]
 
+function healthAt(point: Point): ItemSpawn {
+  return { kind: 'health', x: point.x, y: point.y }
+}
+
 /** TMX pickups it still wants plus the randomised layout, minus the skipped kinds. */
 function level5Items(base: ItemSpawn[]): ItemSpawn[] {
-  const layout = LEVEL5_LAYOUTS[Math.floor(Math.random() * LEVEL5_LAYOUTS.length)] ?? LEVEL5_LAYOUTS[0]!
+  const layout =
+    LEVEL5_LAYOUTS[Math.floor(Math.random() * LEVEL5_LAYOUTS.length)] ?? LEVEL5_LAYOUTS[0]!
   return [
     ...base.filter((item) => item.kind !== 'key' && item.kind !== 'door' && item.kind !== 'health'),
     { kind: 'key', ...layout.key },
     { kind: 'door', ...layout.door },
     { kind: 'exit_sign', ...layout.sign },
-    ...layout.health.map((point): ItemSpawn => ({ kind: 'health', ...point })),
-    ...LEVEL5_BONUS_HEALTH.map((point): ItemSpawn => ({ kind: 'health', ...point })),
+    ...layout.health.map(healthAt),
+    ...LEVEL5_BONUS_HEALTH.map(healthAt),
   ]
 }
 
@@ -153,13 +178,18 @@ export function getLevelSpawns(level: number, tmx: TmxMap): LevelSpawns {
   const base = override ?? spawnsFromObjects(tmx)
 
   // Copy the spawns so the archetype assignment never mutates the tables above.
-  const zombies = base.zombies.map((spawn) => ({ ...spawn }))
+  const zombies = base.zombies.map((spawn) => Object.assign({}, spawn))
   const archetypes = archetypeList(level, zombies.length)
   zombies.forEach((spawn, index) => {
     spawn.archetype = archetypes[index] ?? 'walker'
   })
 
-  return { player, zombies, items: level === 5 ? level5Items(base.items) : base.items.map((item) => ({ ...item })) }
+  return {
+    player,
+    zombies,
+    items:
+      level === 5 ? level5Items(base.items) : base.items.map((item) => Object.assign({}, item)),
+  }
 }
 
 /**
@@ -182,7 +212,7 @@ const MIX_ORDER: EnemyArchetype[] = ['walker', 'runner', 'brute', 'spitter']
 function archetypeList(level: number, count: number): EnemyArchetype[] {
   const mix = LEVEL_MIX[level]
   const list: EnemyArchetype[] = []
-  if (!mix) return new Array<EnemyArchetype>(count).fill('walker')
+  if (!mix) return Array.from({ length: count }, () => 'walker' as EnemyArchetype)
 
   const buckets = MIX_ORDER.map((kind) => ({ kind, remaining: mix[kind] ?? 0 }))
   while (list.length < count) {

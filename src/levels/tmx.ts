@@ -11,9 +11,9 @@ import { TILE_SIZE } from '../config'
  * Everything carries over untouched, and Tiled remains the authoring tool.
  */
 
-export interface TmxObject {
+interface TmxObject {
   name: string
-  type?: string
+  type?: string | undefined
   x: number
   y: number
   width: number
@@ -21,7 +21,7 @@ export interface TmxObject {
   properties: Record<string, string>
 }
 
-export interface TmxLayerData {
+interface TmxLayerData {
   name: string
   width: number
   height: number

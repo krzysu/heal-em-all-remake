@@ -14,7 +14,7 @@ export function screenSize(scene: Phaser.Scene): { width: number; height: number
  * Returns the size of the visible area in design coordinates, which is what a
  * full-bleed background has to cover.
  */
-export function fitDesignCamera(scene: Phaser.Scene): { width: number; height: number } {
+function fitDesignCamera(scene: Phaser.Scene): { width: number; height: number } {
   const { width, height } = screenSize(scene)
   const zoom = Math.max(1, Math.min(width / GAME_WIDTH, height / GAME_HEIGHT))
 
@@ -33,7 +33,14 @@ export function addMenuBackdrop(scene: Phaser.Scene, overlayAlpha: number): void
 
   scene.add.tileSprite(0, 0, size.width, size.height, 'background').setOrigin(0).setAlpha(0.4)
   scene.add
-    .rectangle(0, 0, size.width, size.height, Phaser.Display.Color.HexStringToColor(COLORS.panel).color, overlayAlpha)
+    .rectangle(
+      0,
+      0,
+      size.width,
+      size.height,
+      Phaser.Display.Color.HexStringToColor(COLORS.panel).color,
+      overlayAlpha,
+    )
     .setOrigin(0)
 
   const onResize = (): void => {

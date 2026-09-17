@@ -14,7 +14,7 @@ import type Phaser from 'phaser'
  * animation is a straight mapping.
  */
 
-export interface LegacyFrame {
+interface LegacyFrame {
   sx: number
   sy: number
   cols: number
@@ -23,7 +23,7 @@ export interface LegacyFrame {
   frames: number
 }
 
-export type LegacyAtlas = Record<string, LegacyFrame>
+type LegacyAtlas = Record<string, LegacyFrame>
 
 function isLegacyAtlas(value: unknown): value is LegacyAtlas {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
