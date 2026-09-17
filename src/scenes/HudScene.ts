@@ -18,10 +18,13 @@ export class HudScene extends Phaser.Scene {
   }
 
   create(data: { level?: number }): void {
-    this.lives = GameState.currentRun?.lives ?? 3
-    this.bullets = 0
-    this.zombies = 0
-    this.hasKey = false
+    // `publishRunState` fires before this scene's next update tick, so seed the
+    // counters from the run instead of waiting for the first bus event.
+    const run = GameState.currentRun
+    this.lives = run?.lives ?? 3
+    this.bullets = run?.bullets ?? 0
+    this.zombies = run?.zombiesRemaining ?? 0
+    this.hasKey = run?.hasKey ?? false
 
     this.add.rectangle(0, 0, GAME_WIDTH, 30, 0x232322, 0.85).setOrigin(0)
 

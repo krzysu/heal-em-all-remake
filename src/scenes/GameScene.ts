@@ -86,6 +86,8 @@ export class GameScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.music?.stop()
       this.zombieMusic?.stop()
+      this.music?.destroy()
+      this.zombieMusic?.destroy()
       this.scene.stop('Hud')
     })
   }
@@ -120,6 +122,7 @@ export class GameScene extends Phaser.Scene {
     this.updateBullets()
     this.updateSpits()
     this.updateHumans()
+    this.cullFallen()
     this.handleDoor(jumpPressed)
     this.checkFallOut(time)
     this.updateSafePoint(time)
@@ -187,7 +190,9 @@ export class GameScene extends Phaser.Scene {
     this.mapHeightPx = this.tmx.height * TILE_SIZE
     const worldWidth = this.tmx.width * TILE_SIZE
 
-    this.physics.world.setBounds(0, 0, worldWidth, this.mapHeightPx)
+    // No bottom edge: falling off the map has to actually leave the world so
+    // `checkFallOut` can respawn the player (and end Zombie Mode).
+    this.physics.world.setBounds(0, 0, worldWidth, this.mapHeightPx, true, true, true, false)
     this.cameras.main.setBounds(0, 0, worldWidth, this.mapHeightPx)
     this.cameras.main.setBackgroundColor(COLORS.bg)
     this.cameras.main.roundPixels = true
@@ -449,6 +454,21 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Humans and bodies that drop out of the map must not inflate the score. */
+  private cullFallen(): void {
+    const limit = this.mapHeightPx + 120
+
+    for (const human of this.humans) {
+      if (human.active && human.y > limit) human.destroy()
+    }
+    this.humans = this.humans.filter((human) => human.active)
+
+    for (const dead of this.deadZombies) {
+      if (dead.active && dead.y > limit) dead.destroy()
+    }
+    this.deadZombies = this.deadZombies.filter((dead) => dead.active)
+  }
+
   private handleDoor(enterPressed: boolean): void {
     const door = this.door
     if (!door || !door.active || this.finished || this.player.isZombie) return
@@ -621,8 +641,10 @@ export class GameScene extends Phaser.Scene {
   private finishLevel(): void {
     this.finished = true
 
-    this.run.zombiesHealed = this.humans.filter((human) => human.active).length
+    // A re-infected human can be healed twice, so never score above the level's
+    // zombie total.
     const total = this.run.zombiesAvailable
+    this.run.zombiesHealed = Math.min(this.humans.filter((human) => human.active).length, total)
     const score = total > 0 ? this.run.zombiesHealed / total : 1
     const stars = score <= 0.5 ? 1 : score < 0.9 ? 2 : 3
 

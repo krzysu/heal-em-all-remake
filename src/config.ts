@@ -98,7 +98,7 @@ export const TUNING = {
   zombieSightMemoryMs: 3000,
   zombieAlertCooldownMs: 10000,
   humanInvincibleMs: 4000,
-  /** Zombie Mode: the player's bitten form. Slower, single jump, melee only. */
+  /** Zombie Mode: the player's bitten form. Slower, single jump, infects on touch. */
   zombiePlayerSpeed: 210,
   zombiePlayerJump: -760,
   zombiePlayerMaxJumps: 1,

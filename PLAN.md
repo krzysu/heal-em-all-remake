@@ -86,7 +86,7 @@ ported from the original scene scripts (they hardcoded their entities), levels
 
 ### Phase 3 — Combat & enemy variety (next)
 Shipped: Zombie Mode (zero lives turns the doctor into a ZombiePlayer — slower,
-single jump, melee only, infects humans, must fall off the map to recover),
+single jump, no gun, infects humans on touch, must fall off the map to recover),
 combat juice (hit-stop via `World.timeScale`, camera shake, muzzle flash,
 particle bursts, HUD avatar swap) and four enemy archetypes — walker, runner,
 brute (armoured, 3 hits) and spitter (ranged) — mixed per level in
