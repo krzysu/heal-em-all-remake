@@ -98,4 +98,11 @@ export const TUNING = {
   zombieSightMemoryMs: 3000,
   zombieAlertCooldownMs: 10000,
   humanInvincibleMs: 4000,
+  /** Zombie Mode: the player's bitten form. Slower, single jump, melee only. */
+  zombiePlayerSpeed: 210,
+  zombiePlayerJump: -760,
+  zombiePlayerMaxJumps: 1,
+  /** Hit-stop: briefly slow the sim for impact. timeScale 4 = quarter speed. */
+  hitStopMs: 70,
+  hitStopScale: 4,
 } as const

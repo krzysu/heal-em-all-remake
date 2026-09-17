@@ -6,6 +6,7 @@ import { bus, Events, GameState } from '../state/GameState'
 export class HudScene extends Phaser.Scene {
   private statusLabel!: Phaser.GameObjects.Text
   private infoLabel!: Phaser.GameObjects.Text
+  private avatar!: Phaser.GameObjects.Image
 
   private lives = 3
   private bullets = 0
@@ -39,8 +40,10 @@ export class HudScene extends Phaser.Scene {
       })
       .setOrigin(1, 0)
 
+    this.avatar = this.add.image(28, 48, 'hud', 'hud_player:0').setScale(0.5)
+
     this.infoLabel = this.add
-      .text(GAME_WIDTH / 2, 38, '', {
+      .text(GAME_WIDTH / 2 + 20, 38, '', {
         fontFamily: FONTS.body,
         fontSize: '16px',
         color: COLORS.title,
@@ -56,6 +59,7 @@ export class HudScene extends Phaser.Scene {
     bus.on(Events.bulletsChanged, this.onBullets, this)
     bus.on(Events.zombiesChanged, this.onZombies, this)
     bus.on(Events.keyChanged, this.onKey, this)
+    bus.on(Events.playerMode, this.onPlayerMode, this)
     bus.on(Events.info, this.onInfo, this)
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -63,6 +67,7 @@ export class HudScene extends Phaser.Scene {
       bus.off(Events.bulletsChanged, this.onBullets, this)
       bus.off(Events.zombiesChanged, this.onZombies, this)
       bus.off(Events.keyChanged, this.onKey, this)
+      bus.off(Events.playerMode, this.onPlayerMode, this)
       bus.off(Events.info, this.onInfo, this)
     })
   }
@@ -83,6 +88,10 @@ export class HudScene extends Phaser.Scene {
       delay: 2600,
       duration: 500,
     })
+  }
+
+  private onPlayerMode(mode: 'doctor' | 'zombie'): void {
+    this.avatar.setFrame(mode === 'zombie' ? 'hud_zombie_player:0' : 'hud_player:0')
   }
 
   private onLives(value: number): void {

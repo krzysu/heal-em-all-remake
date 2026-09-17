@@ -35,21 +35,23 @@ const specs: AnimSpec[] = [
 
   // Zombie
   { key: 'zombie:run', texture: 'characters', sheet: 'zombie', frames: [0, 1, 2, 3], rate: 0.4, repeat: -1 },
-  { key: 'zombie:attack', texture: 'characters', sheet: 'zombie', frames: [8, 9, 10, 11], rate: 1 / 2, repeat: 0 },
+  // One-shot combat/transition animations are sped up from the original rates
+  // (which ran in seconds) so they never lock control for noticeable time.
+  { key: 'zombie:attack', texture: 'characters', sheet: 'zombie', frames: [8, 9, 10, 11], rate: 0.15, repeat: 0 },
   { key: 'zombie:hit', texture: 'characters', sheet: 'zombie', frames: [10], rate: 1, repeat: 0 },
   { key: 'zombie:fall', texture: 'characters', sheet: 'zombie', frames: [4, 5, 6, 7, 7, 7, 7], rate: 1 / 5, repeat: 0 },
   { key: 'zombie:dead', texture: 'characters', sheet: 'zombie', frames: [16, 17, 18, 19, 20, 21], rate: 1 / 3, repeat: 0 },
 
   // Human
-  { key: 'human:intro', texture: 'characters', sheet: 'human', frames: [0, 1, 2, 3], rate: 0.7, repeat: 0 },
+  { key: 'human:intro', texture: 'characters', sheet: 'human', frames: [0, 1, 2, 3], rate: 0.12, repeat: 0 },
   { key: 'human:stand', texture: 'characters', sheet: 'human', frames: [4, 5, 6], rate: 1 / 3, repeat: -1 },
-  { key: 'human:outro', texture: 'characters', sheet: 'human', frames: [3, 2, 1, 0], rate: 0.8, repeat: 0 },
+  { key: 'human:outro', texture: 'characters', sheet: 'human', frames: [3, 2, 1, 0], rate: 0.12, repeat: 0 },
 
   // Zombie player
   { key: 'zombiePlayer:stand', texture: 'characters', sheet: 'zombie_player', frames: [4], rate: 1, repeat: -1 },
   { key: 'zombiePlayer:run', texture: 'characters', sheet: 'zombie_player', frames: [3, 4, 5, 4], rate: 1 / 3, repeat: -1 },
   { key: 'zombiePlayer:jump', texture: 'characters', sheet: 'zombie_player', frames: [3], rate: 1, repeat: -1 },
-  { key: 'zombiePlayer:intro', texture: 'characters', sheet: 'zombie_player', frames: [0, 1, 0, 1, 0, 1], rate: 0.8, repeat: 0 },
+  { key: 'zombiePlayer:intro', texture: 'characters', sheet: 'zombie_player', frames: [0, 1, 0, 1, 0, 1], rate: 0.12, repeat: 0 },
 
   // Bullet
   { key: 'bullet:fly', texture: 'bullet', sheet: 'bullet', frames: [0, 1, 2, 3, 4, 5], rate: 0.3, repeat: -1 },

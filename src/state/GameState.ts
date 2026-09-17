@@ -23,6 +23,7 @@ export const Events = {
   bulletsChanged: 'bullets:changed',
   zombiesChanged: 'zombies:changed',
   keyChanged: 'key:changed',
+  playerMode: 'player:mode',
   info: 'info',
 } as const
 

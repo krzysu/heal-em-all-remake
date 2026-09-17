@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { COLORS, GAME_HEIGHT, GAME_WIDTH, TILE_SIZE, TUNING } from '../config'
 import { bus, Events, GameState, type RunState } from '../state/GameState'
-import { Player } from '../entities/Player'
+import { Player, type PlayerMode } from '../entities/Player'
 import { Zombie } from '../entities/Zombie'
 import { Human } from '../entities/Human'
 import { DeadZombie } from '../entities/DeadZombie'
@@ -11,12 +11,13 @@ import { parseTmx, toTileIndices, type TmxMap } from '../levels/tmx'
 import { getLevelSpawns, type ItemSpawn, type Point, type ZombieSpawn } from '../levels/levels'
 
 /**
- * The vertical slice: a real Tiled level, fully playable.
+ * The vertical slice turned full game loop: real Tiled levels, combat, and
+ * Zombie Mode.
  *
  * Pipeline: cached TMX text -> `parseTmx` -> Phaser array tilemap (collision)
  * plus a decoration layer, then entities spawned from the per-level tables in
- * `levels.ts`. Everything is wired by hand in `update()` rather than through
- * physics groups so each interaction is explicit and cheap.
+ * `levels.ts`. Interactions are wired by hand in `update()` rather than through
+ * physics groups so each one is explicit and cheap.
  */
 export class GameScene extends Phaser.Scene {
   private level = 1
@@ -24,7 +25,7 @@ export class GameScene extends Phaser.Scene {
   private tmx!: TmxMap
   private solids!: Phaser.Tilemaps.TilemapLayer
   private mapHeightPx = 0
-  private spawnPoint!: Point
+  private safePoint!: Point
 
   private player!: Player
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
@@ -41,10 +42,13 @@ export class GameScene extends Phaser.Scene {
   private door: Item | null = null
 
   private nextFireAt = 0
+  private nextSafeAt = 0
+  private hitStopUntil = 0
   private doorPrompted = false
   private finished = false
   private jumpQueued = false
   private music?: Phaser.Sound.BaseSound
+  private zombieMusic?: Phaser.Sound.BaseSound
 
   constructor() {
     super('Game')
@@ -54,6 +58,9 @@ export class GameScene extends Phaser.Scene {
     this.level = data.level ?? 1
     this.run = GameState.startRun(this.level)
     this.resetCollections()
+    this.ensureSparkTexture()
+    // Hit-stop slows the sim; never inherit a slowed world from a restart.
+    this.physics.world.timeScale = 1
 
     const xml = this.cache.text.get(`level${this.level}`) as string | undefined
     if (!xml) {
@@ -76,12 +83,18 @@ export class GameScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.music?.stop()
+      this.zombieMusic?.stop()
       this.scene.stop('Hud')
     })
   }
 
   override update(time: number): void {
     if (!this.player || !this.player.active) return
+
+    if (this.hitStopUntil > 0 && time >= this.hitStopUntil) {
+      this.hitStopUntil = 0
+      this.physics.world.timeScale = 1
+    }
 
     const jumpPressed = this.jumpQueued
     this.jumpQueued = false
@@ -106,6 +119,7 @@ export class GameScene extends Phaser.Scene {
     this.updateHumans()
     this.handleDoor(jumpPressed)
     this.checkFallOut(time)
+    this.updateSafePoint(time)
   }
 
   // ---------------------------------------------------------------- level ---
@@ -118,9 +132,12 @@ export class GameScene extends Phaser.Scene {
     this.items = []
     this.door = null
     this.nextFireAt = 0
+    this.nextSafeAt = 0
+    this.hitStopUntil = 0
     this.doorPrompted = false
     this.finished = false
     this.jumpQueued = false
+    this.zombieMusic = undefined
   }
 
   private buildLevel(): void {
@@ -180,7 +197,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnEntities(spawns: ReturnType<typeof getLevelSpawns>): void {
-    this.spawnPoint = spawns.player
+    this.safePoint = { ...spawns.player }
 
     this.player = new Player(this, spawns.player.x, spawns.player.y)
     this.physics.add.collider(this.player, this.solids)
@@ -225,11 +242,18 @@ export class GameScene extends Phaser.Scene {
       this.physics.world.removeCollider(solidCollider)
       this.humans = this.humans.filter((entry) => entry !== human)
     })
-    human.on('reverted', (source: Human) => {
-      this.spawnZombie({ x: source.x, y: source.y, startLeft: Math.random() < 0.5 }).markWasHuman()
+    human.on('reverted', (source: Human, byZombiePlayer: boolean) => {
+      const zombie = this.spawnZombie({
+        x: source.x,
+        y: source.y,
+        startLeft: Math.random() < 0.5,
+      })
+      // A zombie player's victims can still be cured; a normal zombie's cannot.
+      if (!byZombiePlayer) zombie.markWasHuman()
     })
 
     this.sound.play('humanCreated', { volume: 0.7 })
+    this.burst(x, y, 0x8bd450, 14)
   }
 
   private spawnDeadZombie(x: number, y: number): void {
@@ -247,8 +271,15 @@ export class GameScene extends Phaser.Scene {
     const wasHuman = zombie.wasHuman
     zombie.destroy()
 
-    if (wasHuman) this.spawnDeadZombie(x, y)
-    else this.spawnHuman(x, y)
+    this.setHitStop(this.time.now, 50)
+    this.cameras.main.shake(90, 0.004)
+
+    if (wasHuman) {
+      this.burst(x, y, 0x9ca2ae, 10)
+      this.spawnDeadZombie(x, y)
+    } else {
+      this.spawnHuman(x, y)
+    }
   }
 
   private refreshZombieCount(): void {
@@ -285,13 +316,13 @@ export class GameScene extends Phaser.Scene {
     bus.emit(Events.bulletsChanged, this.run.bullets)
     bus.emit(Events.keyChanged, this.run.hasKey)
     bus.emit(Events.zombiesChanged, this.zombies.length)
+    bus.emit(Events.playerMode, 'doctor' as PlayerMode)
   }
 
   // -------------------------------------------------------------- systems ---
 
   private handleWeapon(time: number): void {
-    if (!this.player.armed) return
-
+    if (!this.player.armed || this.player.isZombie) return
     if (!this.keyFire.isDown || time < this.nextFireAt) return
 
     if (this.run.bullets <= 0) {
@@ -304,6 +335,10 @@ export class GameScene extends Phaser.Scene {
     this.run.bullets -= 1
     bus.emit(Events.bulletsChanged, this.run.bullets)
     this.sound.play('gunShot', { volume: 0.5 })
+
+    const muzzleX = this.player.x + this.player.facing * 15
+    this.muzzleFlash(muzzleX, this.player.y + 3, this.player.facing)
+    this.cameras.main.shake(50, 0.0025)
 
     const bullet = Bullet.spawnFor(this, this.player)
     this.bullets.push(bullet)
@@ -319,7 +354,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateItems(): void {
-    if (this.finished) return
+    if (this.finished || this.player.isZombie) return
 
     for (const item of [...this.items]) {
       if (!item.active || item.kind === 'door' || item.kind === 'exit_sign') continue
@@ -337,7 +372,10 @@ export class GameScene extends Phaser.Scene {
         continue
       }
 
-      if (this.physics.overlap(this.player, zombie)) this.hurtPlayer()
+      // A zombie pays the walking dead no attention: only bites the doctor.
+      if (!this.player.isZombie && this.physics.overlap(this.player, zombie)) {
+        this.hurtPlayer('contact')
+      }
     }
   }
 
@@ -361,14 +399,22 @@ export class GameScene extends Phaser.Scene {
 
   private updateHumans(): void {
     for (const human of this.humans) {
-      if (!human.active || human.isInvincible) continue
+      if (!human.active) continue
+
+      // The zombie player spreads the infection to humans, even fresh ones.
+      if (this.player.isZombie && this.physics.overlap(this.player, human)) {
+        human.infect(true)
+        continue
+      }
+
+      if (human.isInvincible) continue
 
       for (const zombie of this.zombies) {
         if (!zombie.active) continue
         if (!this.physics.overlap(human, zombie)) continue
 
         zombie.play('zombie:attack')
-        human.infect()
+        human.infect(false)
         break
       }
     }
@@ -376,7 +422,7 @@ export class GameScene extends Phaser.Scene {
 
   private handleDoor(enterPressed: boolean): void {
     const door = this.door
-    if (!door || !door.active || this.finished) return
+    if (!door || !door.active || this.finished || this.player.isZombie) return
 
     if (!this.physics.overlap(this.player, door)) {
       this.doorPrompted = false
@@ -390,6 +436,7 @@ export class GameScene extends Phaser.Scene {
         bus.emit(Events.keyChanged, false)
         bus.emit(Events.info, "Nice! Now I need to 'jump' inside the door")
         this.sound.play('collected', { volume: 0.7 })
+        this.burst(door.x, door.y, 0xffe066, 10)
       } else if (!this.doorPrompted) {
         this.doorPrompted = true
         bus.emit(Events.info, 'I need the key')
@@ -404,9 +451,22 @@ export class GameScene extends Phaser.Scene {
   private checkFallOut(time: number): void {
     if (this.player.y <= this.mapHeightPx + 60) return
 
-    this.player.setPosition(this.spawnPoint.x, this.spawnPoint.y)
+    if (this.player.isZombie) {
+      this.exitZombieMode(time)
+      return
+    }
+
+    this.player.setPosition(this.safePoint.x, this.safePoint.y)
     this.player.setVelocity(0, 0)
-    this.hurtPlayer(time)
+    this.hurtPlayer('fall', time)
+  }
+
+  private updateSafePoint(time: number): void {
+    if (time < this.nextSafeAt) return
+    if (!this.player.body.blocked.down && !this.player.body.touching.down) return
+
+    this.nextSafeAt = time + 1500
+    this.safePoint = { x: this.player.x, y: this.player.y }
   }
 
   private collectItem(item: Item): void {
@@ -416,6 +476,7 @@ export class GameScene extends Phaser.Scene {
         bus.emit(Events.keyChanged, true)
         bus.emit(Events.info, 'I found the key, now I need to find the door')
         this.sound.play('collected', { volume: 0.7 })
+        this.burst(item.x, item.y, 0xffe066, 8)
         item.destroy()
         break
 
@@ -433,6 +494,7 @@ export class GameScene extends Phaser.Scene {
         }
         bus.emit(Events.bulletsChanged, this.run.bullets)
         this.sound.play('collected', { volume: 0.7 })
+        this.burst(item.x, item.y, 0xffe066, 8)
         item.destroy()
         break
 
@@ -442,6 +504,7 @@ export class GameScene extends Phaser.Scene {
         bus.emit(Events.livesChanged, this.run.lives)
         bus.emit(Events.info, 'I feel better now!')
         this.sound.play('collected', { volume: 0.7 })
+        this.burst(item.x, item.y, 0xec655d, 10)
         item.destroy()
         break
 
@@ -451,20 +514,79 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private hurtPlayer(time = this.time.now): void {
-    if (!this.player.startInvincibility(time)) return
+  // ------------------------------------------------------- damage & modes ---
+
+  private hurtPlayer(source: 'contact' | 'fall', time = this.time.now): void {
+    if (source === 'contact' && !this.player.startInvincibility(time)) return
 
     this.run.lives -= 1
     bus.emit(Events.livesChanged, this.run.lives)
     this.sound.play('playerHit', { volume: 0.7 })
+    this.cameras.main.shake(150, 0.012)
+    this.burst(this.player.x, this.player.y, 0xec655d, 10)
+    this.setHitStop(time, TUNING.hitStopMs)
 
-    if (this.run.lives <= 0) {
-      this.scene.start('GameOver')
+    if (this.run.lives > 0) {
+      bus.emit(Events.info, 'That hurts!')
+      if (this.run.lives === 1) bus.emit(Events.info, 'I need to be more careful')
       return
     }
 
-    bus.emit(Events.info, 'That hurts!')
-    if (this.run.lives === 1) bus.emit(Events.info, 'I need to be more careful')
+    // No lives left. The original turns the doctor into a zombie — unless he is
+    // already a zombie, already came back once, or this death was a fall.
+    if (source === 'fall' || this.player.wasZombie || this.player.isZombie) {
+      this.gameOver()
+      return
+    }
+
+    this.enterZombieMode(time)
+  }
+
+  private enterZombieMode(time: number): void {
+    this.run.zombieModeFound = true
+    this.player.enterZombieMode()
+    bus.emit(Events.playerMode, 'zombie' as PlayerMode)
+    bus.emit(Events.info, "I was bitten. I'm turning. Nooo!")
+    this.cameras.main.flash(320, 60, 140, 60)
+    this.setHitStop(time, 160)
+
+    this.music?.stop()
+    this.zombieMusic = this.sound.add('zombieMode', { loop: true, volume: 0.4 })
+    this.zombieMusic.play()
+
+    this.time.delayedCall(1800, () => {
+      if (this.player.active && this.player.isZombie) {
+        bus.emit(Events.info, 'I need to kill myself')
+      }
+    })
+  }
+
+  private exitZombieMode(time: number): void {
+    this.run.lives = 3
+    bus.emit(Events.livesChanged, this.run.lives)
+
+    this.player.exitZombieMode()
+    this.player.setPosition(this.safePoint.x, this.safePoint.y)
+    this.player.setVelocity(0, 0)
+    this.player.setAlpha(1)
+
+    if (this.run.hasGun) this.player.equipGun()
+    bus.emit(Events.playerMode, 'doctor' as PlayerMode)
+    bus.emit(Events.bulletsChanged, this.run.bullets)
+    bus.emit(Events.info, 'Ok, back to business')
+
+    this.setHitStop(time, 120)
+    this.cameras.main.flash(280, 40, 90, 40)
+
+    this.zombieMusic?.stop()
+    this.zombieMusic = undefined
+    this.music?.play()
+  }
+
+  private gameOver(): void {
+    this.zombieMusic?.stop()
+    this.music?.stop()
+    this.scene.start('GameOver')
   }
 
   private finishLevel(): void {
@@ -477,5 +599,59 @@ export class GameScene extends Phaser.Scene {
 
     GameState.completeRun({ stars, nextLevel: this.level + 1 })
     this.scene.start('LevelSummary')
+  }
+
+  // ------------------------------------------------------------------ fx ---
+
+  private setHitStop(time: number, durationMs: number): void {
+    this.hitStopUntil = Math.max(this.hitStopUntil, time + durationMs)
+    this.physics.world.timeScale = TUNING.hitStopScale
+  }
+
+  private ensureSparkTexture(): void {
+    if (this.textures.exists('spark')) return
+
+    const graphics = this.add.graphics()
+    graphics.fillStyle(0xffffff, 1)
+    graphics.fillRect(0, 0, 4, 4)
+    graphics.generateTexture('spark', 4, 4)
+    graphics.destroy()
+  }
+
+  private burst(x: number, y: number, tint: number, count: number): void {
+    if (!this.textures.exists('spark')) return
+
+    const emitter = this.add
+      .particles(x, y, 'spark', {
+        speed: { min: 40, max: 150 },
+        angle: { min: 0, max: 360 },
+        lifespan: 340,
+        scale: { start: 1.1, end: 0 },
+        tint,
+        blendMode: 'ADD',
+        emitting: false,
+      })
+      .setDepth(120)
+
+    emitter.explode(count)
+    this.time.delayedCall(420, () => emitter.destroy())
+  }
+
+  private muzzleFlash(x: number, y: number, direction: 1 | -1): void {
+    const flash = this.add
+      .image(x + direction * 6, y, 'spark')
+      .setScale(3, 2)
+      .setTint(0xfff2a0)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(110)
+
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      scaleX: 4.5,
+      scaleY: 3,
+      duration: 90,
+      onComplete: () => flash.destroy(),
+    })
   }
 }

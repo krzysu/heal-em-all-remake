@@ -12,6 +12,7 @@ export class Human extends Phaser.Physics.Arcade.Sprite {
 
   private invincibleUntil: number
   private reverting = false
+  private infectedByPlayer = false
 
   constructor(scene: Phaser.Scene, x: number, y: number, invincibleMs = TUNING.humanInvincibleMs) {
     super(scene, x, y, 'characters', 'human:0')
@@ -34,14 +35,20 @@ export class Human extends Phaser.Physics.Arcade.Sprite {
     return this.scene.time.now < this.invincibleUntil
   }
 
-  /** Re-infected by a zombie. Starts the outro and emits `reverted`. */
-  infect(): void {
-    if (this.reverting || this.isInvincible) return
+  /**
+   * Re-infected and starts the outro, then emits `reverted` with whether the
+   * zombie-mode player caused it. A zombie player ignores the grace period.
+   */
+  infect(byZombiePlayer = false): void {
+    if (this.reverting) return
+    if (!byZombiePlayer && this.isInvincible) return
+
     this.reverting = true
+    this.infectedByPlayer = byZombiePlayer
 
     this.play('human:outro')
     this.once('animationcomplete-human:outro', () => {
-      this.emit('reverted', this)
+      this.emit('reverted', this, this.infectedByPlayer)
       this.destroy()
     })
   }
