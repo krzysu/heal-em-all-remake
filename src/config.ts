@@ -67,15 +67,35 @@ export const ASSETS = {
 } as const
 
 /**
- * Physics feel. Original Quintus values were jumpSpeed -660 / speed 330;
- * Arcade Physics needs its own tuning, so treat these as a starting point.
+ * Physics feel. The original used gravity 980, jump -660, speed 330 (very
+ * floaty). The remaster keeps the reach those levels need — level 1 has
+ * 4-tile gaps and 3-tile climbs — but adds modern platformer affordances
+ * (coyote time, jump buffering, variable height, double jump) and a snappier
+ * fall. Jump height here is ~3.4 tiles; double jump clears ~6.4 tiles.
  */
 export const TUNING = {
-  gravityY: 1800,
+  gravityY: 1400,
   moveSpeed: 330,
-  jumpVelocity: -620,
+  jumpVelocity: -820,
+  doubleJumpVelocity: -760,
+  /** Total jumps allowed before touching the ground. 2 = double jump. */
+  maxJumps: 2,
+  /** Velocity retained when the jump button is released early. */
+  jumpCutMultiplier: 0.45,
+  /** Terminal velocity so long falls stay controllable. */
+  maxFallSpeed: 1000,
   /** Grace period after walking off a ledge where a jump still works. */
-  coyoteTimeMs: 100,
+  coyoteTimeMs: 110,
   /** How early a jump press is remembered before landing. */
-  jumpBufferMs: 120,
+  jumpBufferMs: 130,
+  /** Enemy / item tuning. */
+  invincibleMs: 1200,
+  fireCooldownMs: 420,
+  bulletSpeed: 760,
+  bulletRange: 320,
+  zombieSpeed: 60,
+  zombieSightRange: 350,
+  zombieSightMemoryMs: 3000,
+  zombieAlertCooldownMs: 10000,
+  humanInvincibleMs: 4000,
 } as const

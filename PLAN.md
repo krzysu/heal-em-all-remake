@@ -58,7 +58,7 @@ remaster keeps the identity but raises the action ceiling.
 | Language | TypeScript (`strict`, no `any`) |
 | Build/dev | Vite 8 |
 | Physics | Arcade Physics (platformer + tile collisions) |
-| Levels | Tiled maps; keep TMX, or resave as Tiled JSON (preferred) |
+| Levels | Tiled maps; the original `.tmx` is parsed at runtime (no resave) |
 | Audio | Phaser Web Audio Sound Manager |
 | State | `src/state/GameState.ts` singleton + `localStorage` |
 | Art atlas | Keep hand-made sheets; adapter converts legacy JSON → Phaser atlas |
@@ -69,39 +69,59 @@ remaster keeps the identity but raises the action ceiling.
 Vite + TS + Phaser 4 project, asset pipeline, scene skeleton, state store,
 boot/preload/start/level-select flows running, HUD and level scenes stubbed.
 
-### Phase 2 — Vertical slice: one level, fully playable
-Player movement (coyote/buffer/variable jump), Arcade tile collisions, one
-level loaded from Tiled, zombies with edge-detecting AI, bullets, humans that
-revert, key/door/exit, pickups, live HUD. This is the de-risking step: prove
-the feel and the tilemap pipeline before scaling out.
+### Phase 2 — Vertical slice: one level, fully playable ✅
+All six original levels load from their untouched `.tmx` files via a small
+runtime XML reader (`src/levels/tmx.ts`) that builds a Phaser array tilemap
+(collision) plus a decoration layer — no resave step, no duplicated data.
+Movement is a modern take on the original: gravity 1400, jump -820 (~3.4
+tiles), double jump, coyote time, jump buffering, variable jump height and a
+fall-speed cap. Ported and wired end to end: patrolling zombies with the
+original ledge + 350px line-of-sight AI, healing bullets, humans that revert
+when touched, key / door / gun / health pickups, live HUD with an info line,
+lives, fall-out recovery, per-level summary with stars, save progress.
 
-### Phase 3 — Combat & enemy variety
-Weapon system, hit-stop/shake/particles, enemy archetypes, spawn tables driven
-by Tiled object layers, damage/health/death polish.
+Spawn data lives in `src/levels/levels.ts`: levels 1-2 use explicit tables
+ported from the original scene scripts (they hardcoded their entities), levels
+3-6 are read from the TMX object groups exactly like `addObjectsToStage` did.
+
+### Phase 3 — Combat & enemy variety (next)
+Weapon variants (spread, charge, melee), hit-stop/shake/particles, the
+runner/brute/spitter/screamer archetypes, spawn tables per act, and Zombie Mode:
+today reaching zero lives goes straight to Game Over, but the original turned
+the player into a ZombiePlayer. Reinstate that transformation properly.
 
 ### Phase 4 — Progression & meta
-Level select map, star scoring, unlocks, upgrade shop between levels,
-`localStorage` save/load, summary + game-over + end screens.
+Level-select upgrades: star scoring, unlocks and the summary/star row are in;
+still to do are the upgrade shop between levels, richer medals, and best-run
+records.
 
 ### Phase 5 — Remaining levels & content
-Port and then extend levels 2–6, add new act(s), boss encounters, challenge
-and endless modes.
+All six original levels already load and play. Extend them with new act(s),
+boss encounters, and challenge + endless modes.
 
 ### Phase 6 — Polish, mobile & ship
 Virtual controls, responsive/safe-area layout, audio unlock, performance pass,
 cross-browser (Safari/iOS) QA, static deploy.
 
 ## Known gotchas
-- Arcade Physics bodies won't exactly reproduce the original custom polygon
-  collider (`[-15,-50]..[25,50]`) — budget tuning time and treat the original
-  values (`jumpSpeed -660`, `speed 330`) as a starting point only.
-- Zombie ledge detection used `Q.stage().locate(...)`; replace with
-  `tilemap.getTileAtWorldXY` at the feet.
-- Original zombie AI "line of sight" was a 350px horizontal band — reimplement
-  and then improve.
-- Legacy atlas JSON format differs from Phaser's; needs a small converter
-  (planned in `src/assets/atlas.ts`).
-- Original `Background` sprite read an undefined asset — dead code, drop it.
+- The original custom polygon collider (`[-15,-50]..[25,50]`) is approximated
+  with an Arcade body (26x86, offset 12,13). Physics was deliberately retuned
+  for the remaster (gravity 1400, jump -820, double jump) while keeping the
+  original's reach: level 1 needs ~3.2-tile jumps and 4-tile gaps.
+- Zombie ledge detection used `Q.stage().locate(...)`; now
+  `TilemapLayer.getTileAtWorldXY` at the feet.
+- Zombie "line of sight" is the original 350px horizontal band, with a 3s
+  memory and a 10s alert cooldown, in `src/entities/Zombie.ts`.
+- Phaser cannot load `.tmx`, and its Tiled-JSON loader would mean resaving the
+  levels; `src/levels/tmx.ts` parses the XML at runtime instead. Tileset
+  `firstgid=1` / gid 0 maps to index -1.
+- `Phaser.Input.Keyboard.JustDown` is cleared by the keyup handler, so a tap
+  between two frames is dropped. Gameplay presses are queued from `keydown-*`
+  events in `GameScene.bindInput()`.
+- Levels 1-2 hardcoded their entities in the original scene scripts, so they
+  keep explicit spawn tables; levels 3-6 read the TMX object groups. The legacy
+  random key/door layouts in levels 3 and 5 are currently fixed to one variant.
+- Original `Background` sprite read an undefined asset — dead code, dropped.
 - `localStorage` keys reused for save compatibility: `zombieGame:availableLevel`,
   `zombieGame:levelProgress`.
 
@@ -109,19 +129,28 @@ cross-browser (Safari/iOS) QA, static deploy.
 
 ```
 src/
-  main.ts            Phaser game bootstrap + scene list
+  main.ts            Phaser game bootstrap + scene list (+ dev-only window.game)
   config.ts          Dimensions, physics, asset paths, tuning constants
   state/GameState.ts Progress + run state + event bus
+  levels/
+    tmx.ts           Runtime TMX -> Phaser tilemap parser
+    levels.ts        Per-level player start + spawn tables
   scenes/
     BootScene.ts     Scale/input setup
-    PreloadScene.ts  Asset loading + progress bar
+    PreloadScene.ts  Asset loading + progress bar (images, atlases, audio, TMX)
     StartScene.ts    Title
     ControlsScene.ts How-to-play
     LevelSelectScene.ts  Level grid with lock/stars
-    GameScene.ts     Gameplay (stub → Phase 2)
-    HudScene.ts      Overlay (stub)
+    GameScene.ts     Full level pipeline: map, entities, combat, win/lose
+    HudScene.ts      Overlay: counters + doctor's info line
     LevelSummaryScene.ts / GameOverScene.ts / EndScene.ts
-  entities/          Player, Zombie, Human, Bullet, items/ (Phase 2+)
+  entities/
+    Player.ts        Movement, double jump, gun, invincibility
+    Zombie.ts        Patrol + line-of-sight AI, heal/die
+    Human.ts         Reverts when touched by a zombie
+    DeadZombie.ts    Fallen zombie that was once human
+    Bullet.ts        Healing round with range + waste tracking
+    Item.ts          Key / door / gun / health / exit sign
 ```
 
 Run: `pnpm install && pnpm dev`

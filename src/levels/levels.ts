@@ -1,0 +1,125 @@
+import { TILE_SIZE } from '../config'
+import type { TmxMap } from './tmx'
+
+/**
+ * Spawn tables per level.
+ *
+ * Levels 1 and 2 placed their entities in the scene scripts rather than the
+ * TMX object layers, so they get explicit overrides ported from the original
+ * `level1.coffee` / `level2.coffee`. Levels 3-6 used
+ * `map.addObjectsToStage()`, so their spawns are read from the object groups.
+ *
+ * Object coordinates follow the original convention: the object's x/y is the
+ * top-left of its cell, and the entity is centred one half-tile in.
+ */
+
+export interface Point {
+  x: number
+  y: number
+}
+
+export interface ZombieSpawn extends Point {
+  /** Original quirk: `startLeft` true actually means "walk right first". */
+  startLeft?: boolean
+}
+
+export type ItemKind = 'key' | 'door' | 'gun' | 'health' | 'exit_sign'
+
+export interface ItemSpawn extends Point {
+  kind: ItemKind
+  bullets?: number
+}
+
+export interface LevelSpawns {
+  player: Point
+  zombies: ZombieSpawn[]
+  items: ItemSpawn[]
+}
+
+/** Mirrors the original `Q.tilePos(col, row)`: centre of a tile, supports .5. */
+export function tilePos(col: number, row: number): Point {
+  return { x: col * TILE_SIZE + TILE_SIZE / 2, y: row * TILE_SIZE + TILE_SIZE / 2 }
+}
+
+/** Player start per level, ported from `Q.tilePos(...)` in each scene. */
+const PLAYER_START: Record<number, Point> = {
+  1: tilePos(3.5, 9),
+  2: tilePos(2.5, 9),
+  3: tilePos(24.5, 14),
+  4: tilePos(3, 23),
+  5: tilePos(49.5, 21),
+  6: tilePos(3, 3),
+}
+
+const SPAWN_OVERRIDES: Record<number, { zombies: ZombieSpawn[]; items: ItemSpawn[] }> = {
+  1: {
+    zombies: [tilePos(14, 9)],
+    items: [
+      { kind: 'key', ...tilePos(14.5, 9) },
+      { kind: 'door', ...tilePos(27, 9) },
+      { kind: 'gun', bullets: 3, ...tilePos(14.5, 3) },
+      { kind: 'health', ...tilePos(14.5, 15) },
+    ],
+  },
+  2: {
+    zombies: [
+      tilePos(9, 6),
+      { ...tilePos(8, 12), startLeft: true },
+      { ...tilePos(20, 6), startLeft: true },
+      tilePos(21, 12),
+    ],
+    items: [
+      { kind: 'key', ...tilePos(14.5, 3) },
+      { kind: 'door', ...tilePos(27, 9) },
+      { kind: 'gun', bullets: 6, ...tilePos(14.5, 9) },
+      { kind: 'health', ...tilePos(14.5, 15) },
+    ],
+  },
+}
+
+const ITEM_KINDS: Record<string, ItemKind> = {
+  key: 'key',
+  door: 'door',
+  gun: 'gun',
+  health: 'health',
+  exit_sign: 'exit_sign',
+  exitsign: 'exit_sign',
+  sign: 'exit_sign',
+}
+
+function spawnsFromObjects(tmx: TmxMap): { zombies: ZombieSpawn[]; items: ItemSpawn[] } {
+  const zombies: ZombieSpawn[] = []
+  for (const obj of tmx.objects['enemies'] ?? []) {
+    if (obj.name.toLowerCase() !== 'zombie') continue
+    zombies.push({
+      x: obj.x + tmx.tileWidth / 2,
+      y: obj.y + tmx.tileHeight / 2,
+      startLeft: obj.properties['startLeft'] === 'true',
+    })
+  }
+
+  const items: ItemSpawn[] = []
+  for (const obj of tmx.objects['items'] ?? []) {
+    const kind = ITEM_KINDS[obj.name.toLowerCase()]
+    if (!kind) continue
+
+    const spawn: ItemSpawn = {
+      kind,
+      x: obj.x + tmx.tileWidth / 2,
+      y: obj.y + tmx.tileHeight / 2,
+    }
+
+    const bullets = Number.parseInt(obj.properties['bullets'] ?? '', 10)
+    if (Number.isFinite(bullets) && bullets > 0) spawn.bullets = bullets
+    items.push(spawn)
+  }
+
+  return { zombies, items }
+}
+
+export function getLevelSpawns(level: number, tmx: TmxMap): LevelSpawns {
+  const player = PLAYER_START[level] ?? tilePos(3, 9)
+  const override = SPAWN_OVERRIDES[level]
+  if (override) return { player, ...override }
+  return { player, ...spawnsFromObjects(tmx) }
+}

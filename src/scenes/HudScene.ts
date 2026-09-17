@@ -5,6 +5,7 @@ import { bus, Events, GameState } from '../state/GameState'
 /** Screen-space overlay that runs in parallel with the gameplay scene. */
 export class HudScene extends Phaser.Scene {
   private statusLabel!: Phaser.GameObjects.Text
+  private infoLabel!: Phaser.GameObjects.Text
 
   private lives = 3
   private bullets = 0
@@ -38,13 +39,16 @@ export class HudScene extends Phaser.Scene {
       })
       .setOrigin(1, 0)
 
-    this.add
-      .text(12, 40, 'Preview: move ←→ / A D · jump Space / W / ↑ · restart R · menu Esc', {
+    this.infoLabel = this.add
+      .text(GAME_WIDTH / 2, 38, '', {
         fontFamily: FONTS.body,
-        fontSize: '13px',
-        color: COLORS.muted,
+        fontSize: '16px',
+        color: COLORS.title,
+        backgroundColor: 'rgba(35,35,34,0.6)',
+        padding: { x: 8, y: 3 },
       })
-      .setAlpha(0.85)
+      .setOrigin(0.5, 0)
+      .setAlpha(0)
 
     this.refresh()
 
@@ -52,12 +56,14 @@ export class HudScene extends Phaser.Scene {
     bus.on(Events.bulletsChanged, this.onBullets, this)
     bus.on(Events.zombiesChanged, this.onZombies, this)
     bus.on(Events.keyChanged, this.onKey, this)
+    bus.on(Events.info, this.onInfo, this)
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       bus.off(Events.livesChanged, this.onLives, this)
       bus.off(Events.bulletsChanged, this.onBullets, this)
       bus.off(Events.zombiesChanged, this.onZombies, this)
       bus.off(Events.keyChanged, this.onKey, this)
+      bus.off(Events.info, this.onInfo, this)
     })
   }
 
@@ -65,6 +71,18 @@ export class HudScene extends Phaser.Scene {
     const parts = [`LIVES ${this.lives}`, `AMMO ${this.bullets}`, `Z ${this.zombies}`]
     if (this.hasKey) parts.push('KEY')
     this.statusLabel.setText(parts.join('   '))
+  }
+
+  private onInfo(message: string): void {
+    this.infoLabel.setText(message)
+    this.infoLabel.setAlpha(1)
+    this.tweens.killTweensOf(this.infoLabel)
+    this.tweens.add({
+      targets: this.infoLabel,
+      alpha: 0,
+      delay: 2600,
+      duration: 500,
+    })
   }
 
   private onLives(value: number): void {

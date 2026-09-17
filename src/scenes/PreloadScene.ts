@@ -1,5 +1,14 @@
 import Phaser from 'phaser'
-import { ASSETS, ASSET_BASE, COLORS, FONTS, GAME_HEIGHT, GAME_WIDTH, TILE_SIZE } from '../config'
+import {
+  ASSETS,
+  ASSET_BASE,
+  COLORS,
+  FONTS,
+  GAME_HEIGHT,
+  GAME_WIDTH,
+  TILE_SIZE,
+  TOTAL_LEVELS,
+} from '../config'
 import { registerLegacyAtlas } from '../assets/legacyAtlas'
 import { registerAnimations } from '../assets/animations'
 
@@ -50,7 +59,10 @@ export class PreloadScene extends Phaser.Scene {
       this.load.audio(key, `${ASSET_BASE}/${path}`)
     }
 
-    // TODO(Phase 2): load Tiled levels once the TMX -> Tiled JSON pass is done.
+    // Maps stay as the original TMX; GameScene parses the XML at runtime.
+    for (let level = 1; level <= TOTAL_LEVELS; level++) {
+      this.load.text(`level${level}`, `${ASSET_BASE}/${ASSETS.levels(level)}`)
+    }
   }
 
   private drawProgress(): void {

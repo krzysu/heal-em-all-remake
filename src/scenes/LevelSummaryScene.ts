@@ -17,9 +17,9 @@ export class LevelSummaryScene extends Phaser.Scene {
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x1d2430, 0.6).setOrigin(0)
 
     this.add
-      .text(GAME_WIDTH / 2, 70, 'Well done!', {
+      .text(GAME_WIDTH / 2, 46, 'Well done!', {
         fontFamily: FONTS.title,
-        fontSize: '72px',
+        fontSize: '56px',
         color: COLORS.title,
       })
       .setOrigin(0.5)
@@ -33,7 +33,7 @@ export class LevelSummaryScene extends Phaser.Scene {
     ]
 
     this.add
-      .text(GAME_WIDTH / 2, 150, lines.join('\n'), {
+      .text(GAME_WIDTH / 2, 152, lines.join('\n'), {
         fontFamily: FONTS.body,
         fontSize: '22px',
         color: COLORS.accent,
@@ -41,6 +41,8 @@ export class LevelSummaryScene extends Phaser.Scene {
         lineSpacing: 8,
       })
       .setOrigin(0.5)
+
+    this.addStars(GameState.starsFor(level))
 
     createTextButton(this, GAME_WIDTH / 2 - 118, GAME_HEIGHT - 52, {
       label: 'All levels',
@@ -65,6 +67,15 @@ export class LevelSummaryScene extends Phaser.Scene {
         fill: COLORS.danger,
         onClick: () => this.scene.start('End'),
       })
+    }
+  }
+
+  private addStars(earned: number): void {
+    const spacing = 46
+    const firstX = GAME_WIDTH / 2 - spacing
+    for (let index = 0; index < 3; index++) {
+      const frame = index < earned ? 'ui_level_score:0' : 'ui_level_score_empty:0'
+      this.add.image(firstX + index * spacing, 262, 'others', frame).setScale(0.44)
     }
   }
 }

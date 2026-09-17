@@ -47,3 +47,9 @@ const config: Phaser.Types.Core.GameConfig = {
 }
 
 export const game = new Phaser.Game(config)
+
+// Dev-only handle so the game can be driven from the console / automated smoke
+// checks. Stripped from production builds.
+if (import.meta.env.DEV) {
+  ;(window as unknown as { game: Phaser.Game }).game = game
+}
