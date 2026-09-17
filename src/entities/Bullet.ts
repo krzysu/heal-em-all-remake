@@ -51,12 +51,17 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
 
     if (this.spent) return
 
+    // `UpdateList.shutdown` can leave a destroyed object in the update list for
+    // one more frame, with `scene` already nulled.
+    const world = this.scene?.physics?.world
+    if (!world) return
+
     if (Math.abs(this.x - this.startX) > TUNING.bulletRange) {
       this.dissipate()
       return
     }
 
-    const bounds = this.scene.physics.world.bounds
+    const bounds = world.bounds
     if (this.x < bounds.left || this.x > bounds.right || this.y < bounds.top) {
       this.dissipate()
     }

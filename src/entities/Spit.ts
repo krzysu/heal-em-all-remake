@@ -40,7 +40,13 @@ export class Spit extends Phaser.Physics.Arcade.Sprite {
     super.preUpdate(time, delta)
 
     if (this.spent) return
+
+    // `UpdateList.shutdown` kills active children with `destroy(true)`, which
+    // nulls `scene` but can leave this object in the list for one more frame.
+    const world = this.scene?.physics?.world
+    if (!world) return
+
     if (Math.abs(this.x - this.startX) > this.range) this.dissipate()
-    if (this.y > this.scene.physics.world.bounds.bottom) this.dissipate()
+    if (this.y > world.bounds.bottom) this.dissipate()
   }
 }
