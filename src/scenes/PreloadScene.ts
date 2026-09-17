@@ -4,13 +4,12 @@ import {
   ASSET_BASE,
   COLORS,
   FONTS,
-  GAME_HEIGHT,
-  GAME_WIDTH,
   TILE_SIZE,
   TOTAL_LEVELS,
 } from '../config'
 import { registerLegacyAtlas } from '../assets/legacyAtlas'
 import { registerAnimations } from '../assets/animations'
+import { screenSize } from '../ui/layout'
 
 export class PreloadScene extends Phaser.Scene {
   constructor() {
@@ -66,8 +65,9 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   private drawProgress(): void {
-    const centerX = GAME_WIDTH / 2
-    const centerY = GAME_HEIGHT / 2 + 36
+    const { width, height } = screenSize(this)
+    const centerX = width / 2
+    const centerY = height / 2 + 36
     const barWidth = 260
     const barHeight = 12
     const barLeft = centerX - barWidth / 2

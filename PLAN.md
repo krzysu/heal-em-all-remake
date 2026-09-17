@@ -59,6 +59,7 @@ remaster keeps the identity but raises the action ceiling.
 | Build/dev | Vite 8 |
 | Physics | Arcade Physics (platformer + tile collisions) |
 | Levels | Tiled maps; the original `.tmx` is parsed at runtime (no resave) |
+| Rendering | `RESIZE` scale mode, world drawn 1:1 like the original |
 | Audio | Phaser Web Audio Sound Manager |
 | State | `src/state/GameState.ts` singleton + `localStorage` |
 | Art atlas | Keep hand-made sheets; adapter converts legacy JSON → Phaser atlas |
@@ -83,6 +84,16 @@ lives, fall-out recovery, per-level summary with stars, save progress.
 Spawn data lives in `src/levels/levels.ts`: levels 1-2 use explicit tables
 ported from the original scene scripts (they hardcoded their entities), levels
 3-6 are read from the TMX object groups exactly like `addObjectsToStage` did.
+Level 5 keeps the original's gimmick: it ignores the map's Key/Door/Health
+objects and picks one of four mirrored layouts at random.
+
+Rendering also matches the original: its canvas was the window size and the
+world was drawn 1:1 (the `upsampleWidth: 640` branch never fired on desktop),
+so the remaster uses Phaser's `RESIZE` mode at zoom 1. Menu scenes keep their
+640x320 design coordinates by zooming their camera by the design-to-window
+ratio (`src/ui/layout.ts`). The HUD is a 1:1 rebuild of `hud.coffee`: the 124px
+gradient bar, the doctor's head with a speech bubble, and icon counters chained
+from the right edge, plus the pause and menu buttons.
 
 ### Phase 3 — Combat & enemy variety (next)
 Shipped: Zombie Mode (zero lives turns the doctor into a ZombiePlayer — slower,

@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { COLORS, FONTS, GAME_HEIGHT, GAME_WIDTH } from '../config'
+import { addMenuBackdrop } from '../ui/layout'
 import { createTextButton } from '../ui/buttons'
 
 interface Step {
@@ -20,8 +21,7 @@ export class ControlsScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.add.tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, 'background').setOrigin(0).setAlpha(0.4)
-    this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x1d2430, 0.5).setOrigin(0)
+    addMenuBackdrop(this, 0.5)
 
     this.add
       .text(GAME_WIDTH / 2, 56, "How to heal'em in three steps", {

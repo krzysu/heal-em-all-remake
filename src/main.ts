@@ -22,8 +22,10 @@ const config: Phaser.Types.Core.GameConfig = {
   title: "Heal'em All",
   version: '0.1.0',
   scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
+    // The original drew the world 1:1 against the window; RESIZE keeps that
+    // behaviour instead of letterboxing a small design resolution.
+    mode: Phaser.Scale.RESIZE,
+    autoCenter: Phaser.Scale.NO_CENTER,
   },
   physics: {
     default: 'arcade',

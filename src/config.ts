@@ -2,9 +2,17 @@
  * Global game constants. Tuning lives here so gameplay code stays readable.
  */
 
-/** Design resolution. Phaser's FIT scale mode letterboxes this to any screen. */
+/**
+ * Design resolution and the reference frame for menu layout.
+ *
+ * The original rendered its canvas at the full window size at 1:1 (`maximize`
+ * with `upsampleWidth: 640` / `upsampleHeight: 320` never triggering on a
+ * desktop window), so the world is drawn 1:1 in CSS pixels. The remaster uses
+ * Phaser's RESIZE mode to do the same; these values stay as the reference the
+ * menu scenes lay themselves out against.
+ */
 export const GAME_WIDTH = 640
-export const GAME_HEIGHT = 360
+export const GAME_HEIGHT = 320
 
 /** Original maps use 70px tiles. Keep the art's native grid. */
 export const TILE_SIZE = 70

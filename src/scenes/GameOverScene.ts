@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { COLORS, FONTS, GAME_HEIGHT, GAME_WIDTH } from '../config'
+import { addMenuBackdrop } from '../ui/layout'
 import { createTextButton } from '../ui/buttons'
 
 export class GameOverScene extends Phaser.Scene {
@@ -8,8 +9,7 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.add.tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, 'background').setOrigin(0).setAlpha(0.4)
-    this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x1d2430, 0.65).setOrigin(0)
+    addMenuBackdrop(this, 0.65)
 
     this.add
       .text(GAME_WIDTH / 2, 110, 'Game Over', {

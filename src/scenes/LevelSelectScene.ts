@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { COLORS, FONTS, GAME_HEIGHT, GAME_WIDTH, TOTAL_LEVELS } from '../config'
 import { GameState } from '../state/GameState'
+import { addMenuBackdrop } from '../ui/layout'
 import { createTextButton } from '../ui/buttons'
 
 const COLUMNS = 3
@@ -11,8 +12,7 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.add.tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, 'background').setOrigin(0).setAlpha(0.4)
-    this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x1d2430, 0.55).setOrigin(0)
+    addMenuBackdrop(this, 0.55)
 
     this.add
       .text(GAME_WIDTH / 2, 40, 'Everything begins here!', {

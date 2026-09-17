@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { COLORS, FONTS, GAME_HEIGHT, GAME_WIDTH, TOTAL_LEVELS } from '../config'
 import { GameState } from '../state/GameState'
+import { addMenuBackdrop } from '../ui/layout'
 import { createTextButton } from '../ui/buttons'
 
 export class LevelSummaryScene extends Phaser.Scene {
@@ -13,8 +14,7 @@ export class LevelSummaryScene extends Phaser.Scene {
     const level = run?.level ?? 1
     const hasNext = level < TOTAL_LEVELS
 
-    this.add.tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, 'background').setOrigin(0).setAlpha(0.4)
-    this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x1d2430, 0.6).setOrigin(0)
+    addMenuBackdrop(this, 0.6)
 
     this.add
       .text(GAME_WIDTH / 2, 46, 'Well done!', {

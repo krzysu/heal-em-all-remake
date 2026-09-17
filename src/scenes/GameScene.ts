@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { COLORS, GAME_HEIGHT, GAME_WIDTH, TILE_SIZE, TUNING } from '../config'
+import { COLORS, TILE_SIZE, TUNING } from '../config'
 import { bus, Events, GameState, type RunState } from '../state/GameState'
 import { Player, type PlayerMode } from '../entities/Player'
 import { Zombie } from '../entities/Zombie'
@@ -26,6 +26,7 @@ export class GameScene extends Phaser.Scene {
   private tmx!: TmxMap
   private solids!: Phaser.Tilemaps.TilemapLayer
   private mapHeightPx = 0
+  private backdrop!: Phaser.GameObjects.TileSprite
   private safePoint!: Point
 
   private player!: Player
@@ -78,7 +79,9 @@ export class GameScene extends Phaser.Scene {
 
     this.scene.launch('Hud', { level: this.level })
     this.publishRunState()
-    bus.emit(Events.info, 'I need to find the way out of here')
+    // `scene.launch` is queued until the next frame, so the HUD is not
+    // subscribed yet when `create` runs. Delay the intro so it shows up.
+    this.time.delayedCall(30, () => bus.emit(Events.info, 'I need to find the way out of here'))
 
     this.music = this.sound.add('playerBg', { loop: true, volume: 0.4 })
     this.music.play()
@@ -197,12 +200,22 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(COLORS.bg)
     this.cameras.main.roundPixels = true
 
-    this.add
-      .tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, 'background')
+    // The world renders 1:1 like the original, so the backdrop has to cover the
+    // whole (resizable) window rather than a fixed design resolution.
+    this.backdrop = this.add
+      .tileSprite(0, 0, this.scale.width, this.scale.height, 'background')
       .setOrigin(0)
       .setScrollFactor(0)
       .setAlpha(0.35)
       .setDepth(-100)
+
+    const onResize = (): void => {
+      this.backdrop.setSize(this.scale.width, this.scale.height)
+    }
+    this.scale.on(Phaser.Scale.Events.RESIZE, onResize)
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off(Phaser.Scale.Events.RESIZE, onResize)
+    })
   }
 
   private spawnEntities(spawns: ReturnType<typeof getLevelSpawns>): void {
