@@ -146,7 +146,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.zombieReady = false
     this.jumpsUsed = 0
 
-    this.setTexture('characters', 'zombiePlayer:0')
+    this.setTexture('characters', 'zombie_player:0')
     this.play('zombiePlayer:intro')
     this.once('animationcomplete-zombiePlayer:intro', () => {
       if (!this.active) return

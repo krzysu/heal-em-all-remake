@@ -1,12 +1,14 @@
 import Phaser from 'phaser'
-import { COLORS, FONTS } from '../config'
-import { addMenuBackdrop, onLayout } from '../ui/layout'
+import { COLORS, FONTS, GAME_HEIGHT, GAME_WIDTH } from '../config'
+import { addMenuBackdrop } from '../ui/layout'
 import { createTextButton } from '../ui/buttons'
+import { bindScreenKeys } from '../ui/keyboard'
+import { applyMutedState, toggleMute } from '../ui/audioButton'
 
 /**
- * Port of `start.coffee`. The original stacked a title container at the window
- * centre: title at y = -100, subtitle at y = -20, button at y = +80, all sized
- * in raw pixels against the live window.
+ * Title screen. Laid out once in the fixed design space: a title, a tagline and
+ * a Continue button stacked on the vertical centre, with the block nudged up so
+ * the button lands near the middle of the screen.
  */
 export class StartScene extends Phaser.Scene {
   constructor() {
@@ -14,48 +16,40 @@ export class StartScene extends Phaser.Scene {
   }
 
   create(): void {
+    applyMutedState(this)
     addMenuBackdrop(this)
 
-    const title = this.add
-      .text(0, 0, "Heal'em All", {
+    const centerX = GAME_WIDTH / 2
+    const centerY = GAME_HEIGHT / 2
+
+    this.add
+      .text(centerX, centerY - 250, "Heal'em All", {
         fontFamily: FONTS.title,
-        fontSize: '120px',
+        fontSize: '160px',
         color: COLORS.title,
       })
       .setOrigin(0.5)
 
-    const subtitle = this.add
-      .text(0, 0, "There's a cure for zombies", {
+    this.add
+      .text(centerX, centerY - 110, "There's a cure for zombies", {
         fontFamily: FONTS.title,
-        fontSize: '40px',
+        fontSize: '56px',
         color: COLORS.danger,
       })
       .setOrigin(0.5)
 
-    const button = createTextButton(this, 0, 0, {
+    createTextButton(this, centerX, centerY + 60, {
       label: 'Continue',
-      width: 210,
-      height: 70,
+      width: GAME_WIDTH / 3,
+      height: 90,
       fill: COLORS.accent,
-      onClick: () => this.advance(),
+      fontSize: 58,
+      onClick: () => this.scene.start('LevelSelect'),
     })
 
-    onLayout(this, () => {
-      const { width, height } = this.scale
-      const centerX = width / 2
-      const centerY = height / 2
-
-      title.setPosition(centerX, centerY - 100)
-      subtitle.setPosition(centerX, centerY - 20)
-      button.layout(centerX, centerY + 80, width / 3, 70, 58)
+    bindScreenKeys(this, {
+      confirm: () => this.scene.start('LevelSelect'),
+      mute: () => toggleMute(this),
     })
-
-    this.input.keyboard?.once('keydown-ENTER', () => this.advance())
-    this.input.keyboard?.once('keydown-SPACE', () => this.advance())
-  }
-
-  /** Continue goes to the level list; level 1 leads into the tutorial. */
-  private advance(): void {
-    this.scene.start('LevelSelect')
   }
 }

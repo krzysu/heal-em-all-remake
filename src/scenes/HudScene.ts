@@ -1,17 +1,32 @@
 import Phaser from 'phaser'
-import { COLORS, FONTS } from '../config'
+import { COLORS, FONTS, GAME_HEIGHT, WORLD_VIEW_HEIGHT } from '../config'
 import { bus, Events, GameState } from '../state/GameState'
-import { screenSize } from '../ui/layout'
+import { bindScreenKeys } from '../ui/keyboard'
+import { applyMutedState, toggleMute } from '../ui/audioButton'
 
 /**
- * HUD rebuilt to the original `hud.coffee` layout: a 124px gradient bar, the
- * doctor's head in the top-left with a speech bubble, and icon counters chained
- * from the right edge. The counter sprites already contain the "x", so only the
- * number is drawn, exactly like the original.
+ * HUD rebuilt to the original `hud.coffee` layout: a gradient bar, the doctor's
+ * head in the top-left with a speech bubble, and icon counters chained from the
+ * right edge. The counter sprites already contain the "x", so only the number is
+ * drawn, exactly like the original.
+ *
+ * The constants below keep the original's pixel sizes, and the camera carries the
+ * same zoom as the world so the HUD and the level stay in proportion.
  */
 
-/** `gradient-top.png` is 124px tall; the original tiles it across the top. */
+/**
+ * The HUD is drawn at the same scale as the level. The original drew both at
+ * 1:1 in the live window; the world camera now zooms to reframe the level, so
+ * the HUD carries the identical zoom to keep the doctor's head, the counters
+ * and the world art in the same proportion as the original.
+ */
+const HUD_ZOOM = GAME_HEIGHT / WORLD_VIEW_HEIGHT
+
+/** Vertical fade height, from the original's 124px `gradient-top.png` bar. */
 const BAR_HEIGHT = 124
+const BAR_COLOR = 0x14161a
+const BAR_ALPHA_TOP = 0.71
+
 /** Every counter and the speech bubble share this vertical centre. */
 const CENTER_Y = 40
 /** Avatar frame width; the speech bubble starts at its right edge. */
@@ -21,6 +36,14 @@ const NUMBER_SIZE = 34
 /** Gaps between counter groups, straight from `hud.coffee`. */
 const GROUP_GAP = 20
 const KEY_GAP = 34
+
+/**
+ * Visible width of the HUD's own coordinate space. The camera is zoomed, so the
+ * design width covers fewer HUD pixels; the counters chain from that edge.
+ */
+function viewWidth(scene: Phaser.Scene): number {
+  return scene.scale.width / HUD_ZOOM
+}
 
 interface Counter {
   container: Phaser.GameObjects.Container
@@ -32,7 +55,7 @@ interface Counter {
 }
 
 export class HudScene extends Phaser.Scene {
-  private gradient!: Phaser.GameObjects.TileSprite
+  private gradient!: Phaser.GameObjects.Graphics
   private avatar!: Phaser.GameObjects.Image
   private bubble!: Phaser.GameObjects.Graphics
   private bubbleText!: Phaser.GameObjects.Text
@@ -57,6 +80,8 @@ export class HudScene extends Phaser.Scene {
   }
 
   create(): void {
+    applyMutedState(this)
+
     // `publishRunState` fires before this scene's next update tick, so seed the
     // counters from the run instead of waiting for the first bus event.
     const run = GameState.currentRun
@@ -66,9 +91,17 @@ export class HudScene extends Phaser.Scene {
     this.hasKey = run?.hasKey ?? false
     this.paused = false
 
-    const { width } = screenSize(this)
+    // The HUD matches the world's zoom and is anchored to the top-left, so its
+    // reference-space constants keep their original meaning. An origin of (0, 0)
+    // makes `scroll` the top-left corner of the view, so HUD (0, 0) lands there
+    // no matter what the zoom is.
+    const camera = this.cameras.main
+    camera.setOrigin(0, 0)
+    camera.setZoom(HUD_ZOOM)
+    camera.setScroll(0, 0)
 
-    this.gradient = this.add.tileSprite(0, 0, width, BAR_HEIGHT, 'gradientTop').setOrigin(0)
+    this.gradient = this.add.graphics()
+    this.drawGradient(viewWidth(this))
 
     this.avatar = this.add.image(AVATAR_WIDTH / 2, 35.5, 'hud', 'hud_player:0')
 
@@ -99,6 +132,12 @@ export class HudScene extends Phaser.Scene {
     bus.on(Events.keyChanged, this.onKey, this)
     bus.on(Events.playerMode, this.onPlayerMode, this)
     bus.on(Events.info, this.onInfo, this)
+
+    bindScreenKeys(this, {
+      back: () => this.leaveLevel(),
+      pause: () => this.togglePause(),
+      mute: () => toggleMute(this),
+    })
 
     const onResize = (): void => this.layout()
     this.scale.on(Phaser.Scale.Events.RESIZE, onResize)
@@ -164,10 +203,30 @@ export class HudScene extends Phaser.Scene {
     return counter.icon.width + counter.iconGap + textWidth + 16
   }
 
-  private layout(): void {
-    const { width } = screenSize(this)
+  /**
+   * Vertical fade from a dark, translucent top edge to fully transparent, so
+   * the HUD reads over any level art. Redrawn on resize because the gradient
+   * spans the live view width.
+   */
+  private drawGradient(width: number): void {
+    this.gradient.clear()
+    this.gradient.fillGradientStyle(
+      BAR_COLOR,
+      BAR_COLOR,
+      BAR_COLOR,
+      BAR_COLOR,
+      BAR_ALPHA_TOP,
+      BAR_ALPHA_TOP,
+      0,
+      0,
+    )
+    this.gradient.fillRect(0, 0, width, BAR_HEIGHT)
+  }
 
-    this.gradient.setSize(width, BAR_HEIGHT)
+  private layout(): void {
+    const width = viewWidth(this)
+
+    this.drawGradient(width)
     this.avatar.setPosition(AVATAR_WIDTH / 2, 35.5)
     this.pauseButton.setPosition(width - 30, 110)
     this.backButton.setPosition(width - 30, 170)
@@ -288,7 +347,10 @@ export class HudScene extends Phaser.Scene {
     this.scene.pause('Game')
     this.sound.pauseAll()
 
-    const { width, height } = screenSize(this)
+    // Positioned in the HUD's own (zoomed) coordinate space, so it centres on
+    // screen rather than on the design space the camera no longer maps 1:1.
+    const width = viewWidth(this)
+    const height = this.scale.height / HUD_ZOOM
     const shade = this.add.rectangle(0, 0, width, height, 0x000000, 0.5).setOrigin(0)
     const label = this.add
       .text(width / 2, height / 2, 'Paused', {
@@ -303,7 +365,8 @@ export class HudScene extends Phaser.Scene {
 
   private layoutPauseOverlay(): void {
     if (!this.pauseOverlay) return
-    const { width, height } = screenSize(this)
+    const width = viewWidth(this)
+    const height = this.scale.height / HUD_ZOOM
     const [shade, label] = this.pauseOverlay.list as [
       Phaser.GameObjects.Rectangle,
       Phaser.GameObjects.Text,

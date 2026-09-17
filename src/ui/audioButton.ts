@@ -1,4 +1,5 @@
 import type Phaser from 'phaser'
+import { GAME_HEIGHT } from '../config'
 
 /**
  * Port of `audio_button.coffee`. The original toggled the whole game's mute
@@ -28,28 +29,37 @@ function setMuted(muted: boolean): void {
   }
 }
 
-export interface AudioButton {
-  image: Phaser.GameObjects.Image
-  layout: (x: number, y: number) => void
+/** The button reads too small at 1:1 in the 1920x1080 design space. */
+const SCALE = (GAME_HEIGHT / 320) * 0.55
+
+/** Applies the saved mute state, so a screen can sync it before drawing. */
+export function applyMutedState(scene: Phaser.Scene): void {
+  scene.sound.mute = isMuted()
 }
 
-export function createAudioButton(scene: Phaser.Scene): AudioButton {
-  scene.sound.mute = isMuted()
+/** Flips mute, persists it and returns the new state. */
+export function toggleMute(scene: Phaser.Scene): boolean {
+  const muted = !scene.sound.mute
+  scene.sound.mute = muted
+  setMuted(muted)
+  return muted
+}
+
+export function createAudioButton(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+): Phaser.GameObjects.Image {
+  applyMutedState(scene)
 
   const image = scene.add
-    .image(0, 0, 'hud', frame(scene.sound.mute))
-    .setOrigin(0.5)
+    .image(x, y, 'hud', frame(scene.sound.mute))
+    .setScale(SCALE)
     .setInteractive({ useHandCursor: true })
 
   image.on('pointerup', () => {
-    const muted = !scene.sound.mute
-    scene.sound.mute = muted
-    setMuted(muted)
-    image.setFrame(frame(muted))
+    image.setFrame(frame(toggleMute(scene)))
   })
 
-  return {
-    image,
-    layout: (x, y) => image.setPosition(x, y),
-  }
+  return image
 }

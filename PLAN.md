@@ -59,7 +59,7 @@ remaster keeps the identity but raises the action ceiling.
 | Build/dev | Vite 8 |
 | Physics | Arcade Physics (platformer + tile collisions) |
 | Levels | Tiled maps; the original `.tmx` is parsed at runtime (no resave) |
-| Rendering | `RESIZE` scale mode, world drawn 1:1 like the original |
+| Rendering | Fixed 1920x1080 design space + `Scale.FIT`; world/HUD share one camera zoom |
 | Audio | Phaser Web Audio Sound Manager |
 | State | `src/state/store.ts` (pure) + `src/state/GameState.ts` (Phaser bus) |
 | Art atlas | Keep hand-made sheets; adapter converts legacy JSON → Phaser atlas |
@@ -90,18 +90,22 @@ ported from the original scene scripts (they hardcoded their entities), levels
 Level 5 keeps the original's gimmick: it ignores the map's Key/Door/Health
 objects and picks one of four mirrored layouts at random.
 
-Rendering also matches the original: its canvas was the window size and the
-world was drawn 1:1 (the `upsampleWidth: 640` branch never fired on desktop),
-so the remaster uses Phaser's `RESIZE` mode at zoom 1. Menus do **not** use a
-design space either: the original drove every menu from percentages of the live
-window (`Q.width * 0.24`, `Q.height * 0.22`) with literal-pixel font sizes, so
-`src/ui/layout.ts` exposes `onLayout(scene, fn)` and each scene lays itself out
-in real screen pixels, re-running on `RESIZE`. `pixelArt`/`roundPixels` are off
-to match the original's smooth art and web-font rendering. The HUD is a 1:1
-rebuild of `hud.coffee`: the 124px gradient bar, the doctor's head with a speech
-bubble, and icon counters chained from the right edge, plus the pause and menu
-buttons. Input follows the original Quintus bindings: up/X/W jump and space/Z
-fire.
+Rendering uses a fixed design space instead of the original's live-window canvas.
+The original sized its canvas to the window and drew everything 1:1 at device
+pixel ratio 1; reproducing that with `RESIZE` meant a 640x320 frame stretched onto
+a 1080p display, which blurred the web-font text. Scenes are therefore authored
+against `GAME_WIDTH`/`GAME_HEIGHT` (1920x1080) and `Scale.FIT` + `CENTER_BOTH`
+letterboxes that into the window, so the canvas really renders at 1920x1080 and is
+CSS-scaled. Menus lay out once in `create()` with no resize listener and no
+percentage math. `WORLD_VIEW_HEIGHT` (640) is a logical view height: `GameScene`
+zooms by `GAME_HEIGHT / WORLD_VIEW_HEIGHT` to frame a level like the original and
+`HudScene` reuses the same zoom, anchored top-left, so the two stay in proportion.
+`pixelArt`/`roundPixels` are off to match the original's smooth art and web-font
+rendering. The HUD rebuilds `hud.coffee`: the 124px gradient bar (drawn as a
+`fillGradientStyle` ramp, no texture), the doctor's head with a speech bubble, and
+icon counters chained from the right edge, plus the pause and menu buttons. Input
+follows the original Quintus bindings (up/X/W jump, space/Z fire) and every screen
+also supports Enter/Space to confirm, Esc to go back, P to pause and M to mute.
 
 ### Phase 3 — Combat & enemy variety (next)
 Shipped: Zombie Mode (zero lives turns the doctor into a ZombiePlayer — slower,
@@ -124,8 +128,10 @@ All six original levels already load and play. Extend them with new act(s),
 boss encounters, and challenge + endless modes.
 
 ### Phase 6 — Polish, mobile & ship
-Virtual controls, responsive/safe-area layout, audio unlock, performance pass,
-cross-browser (Safari/iOS) QA, static deploy.
+Virtual controls, mobile safe-area layout, audio unlock, performance pass,
+cross-browser (Safari/iOS) QA, static deploy. Note the fixed design space already
+handles window scaling via `Scale.FIT`; non-2:1 windows letterbox rather than
+reflow.
 
 ## Known gotchas
 - The original custom polygon collider (`[-15,-50]..[25,50]`) is approximated
@@ -164,7 +170,9 @@ src/
     animations.ts    Animations ported from the original definitions
   ui/
     buttons.ts       Shared text button factory
-    layout.ts        Design-space camera + backdrop helpers for menu scenes
+    keyboard.ts      Shared Enter/Space, Esc, P, M bindings for every screen
+    layout.ts        Backdrop + screen-size helpers for menu scenes
+    audioButton.ts   Mute button and persistence (`zombieGame:muted`)
   levels/
     tmx.ts           Runtime TMX -> Phaser tilemap parser
     levels.ts        Per-level player start + spawn tables
@@ -175,7 +183,7 @@ src/
     ControlsScene.ts How-to-play
     LevelSelectScene.ts  Level grid with lock/stars
     GameScene.ts     Full level pipeline: map, entities, combat, win/lose
-    HudScene.ts      Overlay: counters + doctor's info line
+    HudScene.ts      Overlay: counters + doctor's info line (shared camera zoom)
     LevelSummaryScene.ts / GameOverScene.ts / EndScene.ts
   entities/
     Player.ts        Movement, double jump, gun, invincibility, zombie mode

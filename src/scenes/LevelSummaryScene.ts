@@ -1,16 +1,17 @@
 import Phaser from 'phaser'
-import { COLORS, FONTS, TOTAL_LEVELS } from '../config'
+import { COLORS, FONTS, GAME_HEIGHT, GAME_WIDTH, TOTAL_LEVELS } from '../config'
 import { GameState } from '../state/GameState'
-import { addMenuBackdrop, fontScale, onLayout } from '../ui/layout'
+import { addMenuBackdrop } from '../ui/layout'
 import { createTextButton } from '../ui/buttons'
+import { bindScreenKeys } from '../ui/keyboard'
+import { applyMutedState, toggleMute } from '../ui/audioButton'
 
 /**
  * Port of `level_summary.coffee`.
  *
  * Two columns split by the same 20% / 8% / 24% math as the original: the stat
- * lines sit in the left column, the three big skulls in the right one. Note the
- * original's spelling `waisted` in its data model is irrelevant here; the UI
- * text reads "Bullets wasted", which the port keeps.
+ * lines sit in the left column, the three big skulls in the right one. The
+ * stat rows are the original's, including its "Bullets wasted" wording.
  */
 const MARGIN_X_PCT = 20
 const GUTTER_X_PCT = 8
@@ -23,11 +24,6 @@ const LINE_HEIGHT = 50
 const SKULL_WIDTH = 80
 
 export class LevelSummaryScene extends Phaser.Scene {
-  private title!: Phaser.GameObjects.Text
-  private lines: Phaser.GameObjects.Text[] = []
-  private skulls: Phaser.GameObjects.Image[] = []
-  private buttons: ReturnType<typeof createTextButton>[] = []
-
   constructor() {
     super('LevelSummary')
   }
@@ -37,13 +33,16 @@ export class LevelSummaryScene extends Phaser.Scene {
     const level = run?.level ?? 1
     const hasNext = level < TOTAL_LEVELS
 
+    applyMutedState(this)
     addMenuBackdrop(this)
-    this.lines = []
-    this.skulls = []
-    this.buttons = []
 
-    this.title = this.add
-      .text(0, 0, 'Well done!', {
+    const marginX = GAME_WIDTH * MARGIN_X_PCT * 0.01
+    const gutterX = GAME_WIDTH * GUTTER_X_PCT * 0.01
+    const columnWidth = GAME_WIDTH * COLUMN_PCT * 0.01
+    const marginY = GAME_HEIGHT * MARGIN_Y_PCT * 0.01
+
+    this.add
+      .text(GAME_WIDTH / 2, marginY / 2, 'Well done!', {
         fontFamily: FONTS.title,
         fontSize: '100px',
         color: COLORS.title,
@@ -60,91 +59,60 @@ export class LevelSummaryScene extends Phaser.Scene {
       entries.push(`Zombie Mode: ${run.zombieModeFound ? 'done' : 'not found'}`)
     }
 
-    for (const entry of entries) {
-      this.lines.push(
-        this.add
-          .text(0, 0, entry, {
-            fontFamily: FONTS.body,
-            fontSize: '36px',
-            color: COLORS.accent,
-          })
-          .setOrigin(0.5),
-      )
-    }
-
-    const earned = GameState.starsFor(level)
-    for (let index = 0; index < 3; index++) {
-      this.skulls.push(
-        this.add
-          .image(0, 0, 'others', index < earned ? 'ui_level_score:0' : 'ui_level_score_empty:0')
-          .setOrigin(0.5),
-      )
-    }
-
-    const back = createTextButton(this, 0, 0, {
-      label: 'All levels',
-      width: 200,
-      height: 70,
-      fill: COLORS.title,
-      onClick: () => this.scene.start('LevelSelect'),
-    })
-    this.buttons.push(back)
-
-    const next = hasNext
-      ? createTextButton(this, 0, 0, {
-          label: 'Play next',
-          width: 200,
-          height: 70,
-          fill: COLORS.accent,
-          onClick: () => this.scene.start('Game', { level: level + 1 }),
-        })
-      : createTextButton(this, 0, 0, {
-          label: 'The End',
-          width: 200,
-          height: 70,
-          fill: COLORS.accent,
-          onClick: () => this.scene.start('End'),
-        })
-    this.buttons.push(next)
-
-    onLayout(this, () => this.layout())
-  }
-
-  private layout(): void {
-    const { width, height } = this.scale
-    const marginX = width * MARGIN_X_PCT * 0.01
-    const gutterX = width * GUTTER_X_PCT * 0.01
-    const columnWidth = width * COLUMN_PCT * 0.01
-    const marginY = height * MARGIN_Y_PCT * 0.01
-    const font = fontScale(this)
-
-    this.title.setPosition(width / 2, marginY / 2)
-    this.title.setFontSize(`${Math.round(100 * font)}px`)
-
     const summaryX = marginX + columnWidth / 2
     const starsX = summaryX + gutterX + columnWidth
 
-    this.lines.forEach((line, index) => {
-      line.setPosition(summaryX, height / 2 + (index - 1.5) * LINE_HEIGHT)
-      line.setFontSize(`${Math.round(36 * font)}px`)
+    entries.forEach((entry, index) => {
+      this.add
+        .text(summaryX, GAME_HEIGHT / 2 + (index - 1.5) * LINE_HEIGHT, entry, {
+          fontFamily: FONTS.body,
+          fontSize: '36px',
+          color: COLORS.accent,
+        })
+        .setOrigin(0.5)
     })
 
-    // `x = -80 - 20` in the original: first skull one width plus a 20px gap
-    // left of the column centre, then stepped by width + 20. The original drew
-    // them at native size (80x90), which is what the reference screenshot shows.
-    const skullStep = SKULL_WIDTH + 20
-    this.skulls.forEach((skull, index) => {
-      skull.setPosition(
-        starsX + (-skullStep * 1.5 + index * skullStep),
-        height / 2 - LINE_HEIGHT / 2,
+    // `x = -80 - 20` in the original: first skull one width plus a 20px gap left
+    // of the column centre, then stepped by width + 20.
+    const earned = GameState.starsFor(level)
+    for (let index = 0; index < 3; index++) {
+      this.add.image(
+        starsX + (SKULL_WIDTH + 20) * (index - 1.5),
+        GAME_HEIGHT / 2 - LINE_HEIGHT / 2,
+        'others',
+        index < earned ? 'ui_level_score:0' : 'ui_level_score_empty:0',
       )
-      skull.setScale(1)
+    }
+
+    const buttonWidth = GAME_WIDTH / 4
+    const buttonY = GAME_HEIGHT - marginY
+    const gap = 40
+
+    createTextButton(this, GAME_WIDTH / 2 - buttonWidth / 2 - gap, buttonY, {
+      label: 'All levels',
+      width: buttonWidth,
+      height: 70,
+      fill: COLORS.title,
+      fontSize: 58,
+      onClick: () => this.scene.start('LevelSelect'),
     })
 
-    const buttonWidth = width / 4
-    const buttonY = height - marginY
-    const gap = 40
-    this.buttons[0]?.layout(width / 2 - buttonWidth / 2 - gap, buttonY, buttonWidth, 70, 58 * font)
-    this.buttons[1]?.layout(width / 2 + buttonWidth / 2 + gap, buttonY, buttonWidth, 70, 58 * font)
+    createTextButton(this, GAME_WIDTH / 2 + buttonWidth / 2 + gap, buttonY, {
+      label: hasNext ? 'Play next' : 'The End',
+      width: buttonWidth,
+      height: 70,
+      fill: COLORS.accent,
+      fontSize: 58,
+      onClick: () =>
+        hasNext ? this.scene.start('Game', { level: level + 1 }) : this.scene.start('End'),
+    })
+
+    // Enter / Space mirrors "Play next", Escape returns to the level list.
+    bindScreenKeys(this, {
+      confirm: () =>
+        hasNext ? this.scene.start('Game', { level: level + 1 }) : this.scene.start('End'),
+      back: () => this.scene.start('LevelSelect'),
+      mute: () => toggleMute(this),
+    })
   }
 }

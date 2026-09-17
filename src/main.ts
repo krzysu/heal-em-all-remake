@@ -25,10 +25,11 @@ const config: Phaser.Types.Core.GameConfig = {
   title: "Heal'em All",
   version: '0.1.0',
   scale: {
-    // The original drew the world 1:1 against the window; RESIZE keeps that
-    // behaviour instead of letterboxing a small design resolution.
-    mode: Phaser.Scale.RESIZE,
-    autoCenter: Phaser.Scale.NO_CENTER,
+    // The engine owns scaling: scenes are authored in the fixed 640x320 design
+    // space above and the canvas is letterboxed into the window. Resizing the
+    // browser never re-runs scene layout code.
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
   },
   physics: {
     default: 'arcade',

@@ -40,29 +40,41 @@ type-aware lint rules — they cannot work here.
 - **Art atlases are hand-authored legacy JSON**, converted at runtime by
   `src/assets/legacyAtlas.ts` into frames named `"<name>:<index>"`. Never edit
   `public/assets` (also excluded from Prettier and oxlint).
-- **Rendering is 1:1 like the original**: `Phaser.Scale.RESIZE`, camera zoom 1,
-  world drawn in CSS pixels. `pixelArt`/`roundPixels` are **off**: the art is
-  vector-ish and the UI is web fonts, so nearest-neighbour sampling looked harsher
-  than the source rather than sharper.
-- **Menus lay out in percentages of the live window, not a design space.** The
-  original set `Q.width`/`Q.height` to the window and used `Q.width * 0.24`,
-  `Q.height * 0.22`, etc. per axis, so the layout adapts to any aspect ratio.
-  Do **not** reintroduce a camera zoom for menus — a single zoom factor stretched
-  the level-select grid. Use `onLayout(scene, fn)` from `src/ui/layout.ts` to run
-  a layout immediately and again on `RESIZE`. `GAME_WIDTH`/`GAME_HEIGHT` are only
-  the initial window size now, and HUD/backdrops must measure
-  `this.scale.width/height` too.
-- **Menu font sizes are literal pixels**, exactly as in the original: a 60px
-  heading stays 60px on a 1080-tall or 1440-tall window. Do not scale fonts by
-  the height ratio; `fontScale()` is a 1:1 placeholder for that reason.
+- **Rendering uses a fixed design space.** `GAME_WIDTH`/`GAME_HEIGHT` (1920x1080)
+  is the resolution every scene is authored against, and `Phaser.Scale.FIT` +
+  `CENTER_BOTH` letterbox it into the window. The canvas really renders at
+  1920x1080 and is CSS-scaled, so text is crisp at 1080p instead of being stretched
+  from a small frame. Trade-off: non-2:1 windows get letterbox bars, and resize
+  never re-runs scene layout code.
+- **World and HUD share one zoom, menus use none.** `WORLD_VIEW_HEIGHT` (640) is a
+  logical view height: `GameScene` zooms its camera by `GAME_HEIGHT /
+  WORLD_VIEW_HEIGHT` (~1.69) so a level is framed like the original, and `HudScene`
+  applies the *same* zoom so the two stay in proportion. The HUD anchors that
+  zoomed camera to the top-left with `setOrigin(0, 0)` + `setScroll(0, 0)` and
+  measures itself with `viewWidth(scene) = scale.width / HUD_ZOOM`. Menu scenes
+  keep zoom 1 and lay out once in `create()` against `GAME_WIDTH`/`GAME_HEIGHT`; do
+  **not** add a resize listener or percentage math to them.
 - **Controls follow the original Quintus bindings**: up arrow / X (`action`) and
   W jump; space / Z (`fire`) shoot; arrows or A/D move. Space deliberately does
   **not** count as held-jump, or firing would siphon jump height.
+- **Every screen has keyboard navigation** via `bindScreenKeys` in
+  `src/ui/keyboard.ts`: Enter/Space confirm, Esc back, and P pause / M mute while
+  in a level (P and M are bound on `HudScene`, which owns the pause overlay and the
+  audio button). Space is deliberately not a confirm in `GameScene` because it
+  fires the gun. Handlers listen on `keydown`, never `JustDown`.
+- **The HUD gradient is drawn, not tiled.** The original overlaid a 124px
+  `gradient-top.png`; that is a plain vertical alpha ramp, so `HudScene.drawGradient`
+  renders it with `Graphics.fillGradientStyle` (dark `#14161a`, alpha 0.71 -> 0).
+  No texture is loaded for it.
 - **State is split on purpose**: `src/state/store.ts` is Phaser-free and unit
   tested; `src/state/GameState.ts` re-exports it and owns the Phaser event bus.
   Put new persistent/run logic in `store.ts`.
 - **Save compatibility**: the original localStorage keys are reused
-  (`zombieGame:availableLevel`, `zombieGame:levelProgress:<n>`).
+  (`zombieGame:availableLevel`, `zombieGame:levelProgress:<n>`), plus
+  `zombieGame:muted`.
+- **`pixelArt`/`roundPixels` are off**: the art is vector-ish and the UI is web
+  fonts, so nearest-neighbour sampling looked harsher than the source rather than
+  sharper.
 
 ## Verifying gameplay in a browser
 
@@ -79,6 +91,11 @@ window.game.scene.start('Game', { level: 1 })
 `window.game.scene.getScene('Hud').bubbleText` before reading HUD state —
 `GameScene.create` also delays its intro `info` emit for the same reason.
 
+Keyboard handlers can be driven without real key events by emitting on the
+scene's own keyboard plugin, e.g. `scene.input.keyboard.emit('keydown-P')` to
+toggle pause from `HudScene`. Pause, mute and Esc all read back via
+`game.scene.isPaused('Game')`, `game.sound.mute` and `game.scene.isActive(...)`.
+
 ## Porting gotchas
 
 - Read the original CoffeeScript before guessing at behaviour:
@@ -92,6 +109,10 @@ window.game.scene.start('Game', { level: 1 })
   non-colliding; respawn and exiting Zombie Mode depend on it.
 - `Phaser.Input.Keyboard.JustDown` is cleared by keyup, dropping presses between
   frames: gameplay presses are queued from `keydown-*` in `GameScene.bindInput`.
+- A scroll-factor-0 object is still affected by camera zoom, so the level backdrop
+  is sized in world units (`scale.width / zoom`) and centred on the camera, not
+  sized to the design space. Sizing it to `scale.width/height` left most of the
+  view showing the flat camera background colour.
 - `exactOptionalPropertyTypes` is on: anything assignable to `undefined` needs an
   explicit `| undefined` on the optional property.
 

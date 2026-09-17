@@ -1,12 +1,15 @@
 import Phaser from 'phaser'
-import { COLORS, FONTS } from '../config'
-import { addMenuBackdrop, fontScale, onLayout } from '../ui/layout'
+import { COLORS, FONTS, GAME_HEIGHT, GAME_WIDTH } from '../config'
+import { addMenuBackdrop } from '../ui/layout'
 import { createTextButton } from '../ui/buttons'
+import { bindScreenKeys } from '../ui/keyboard'
+import { applyMutedState, toggleMute } from '../ui/audioButton'
 
 /**
  * Port of `controls.coffee` — the tutorial screen the remaster was missing
  * entirely. Three columns laid out with the original's percentages: 20% side
- * margins, 8% gutters, 24% wide columns, the title at a quarter-height margin.
+ * margins, 8% gutters and 24% wide columns, with the title at a quarter-height
+ * margin.
  */
 const MARGIN_X_PCT = 20
 const GUTTER_X_PCT = 8
@@ -27,93 +30,66 @@ const STEPS: Step[] = [
 ]
 
 export class ControlsScene extends Phaser.Scene {
-  private title!: Phaser.GameObjects.Text
-  private headings: Phaser.GameObjects.Text[] = []
-  private captions: Phaser.GameObjects.Text[] = []
-  private art: Phaser.GameObjects.Image[] = []
-  private button!: ReturnType<typeof createTextButton>
-
   constructor() {
     super('Controls')
   }
 
   create(): void {
+    applyMutedState(this)
     addMenuBackdrop(this)
-    this.headings = []
-    this.captions = []
-    this.art = []
 
-    this.title = this.add
-      .text(0, 0, "How to heal'em in three steps", {
+    const marginX = GAME_WIDTH * MARGIN_X_PCT * 0.01
+    const gutterX = GAME_WIDTH * GUTTER_X_PCT * 0.01
+    const columnWidth = GAME_WIDTH * COLUMN_PCT * 0.01
+    const marginY = GAME_HEIGHT * MARGIN_Y_PCT * 0.01
+
+    this.add
+      .text(GAME_WIDTH / 2, marginY / 2, "How to heal'em in three steps", {
         fontFamily: FONTS.title,
         fontSize: '60px',
         color: COLORS.title,
       })
       .setOrigin(0.5)
 
-    for (const step of STEPS) {
-      this.headings.push(
-        this.add
-          .text(0, 0, step.heading, {
-            fontFamily: FONTS.body,
-            fontSize: '26px',
-            color: COLORS.danger,
-          })
-          .setOrigin(0.5),
-      )
-      this.captions.push(
-        this.add
-          .text(0, 0, step.caption, {
-            fontFamily: FONTS.body,
-            fontSize: '30px',
-            color: COLORS.muted,
-            align: 'center',
-          })
-          .setOrigin(0.5),
-      )
-      this.art.push(this.add.image(0, 0, 'others', step.frame).setOrigin(0.5))
-    }
+    STEPS.forEach((step, index) => {
+      const x = marginX + columnWidth / 2 + index * (columnWidth + gutterX)
 
-    this.button = createTextButton(this, 0, 0, {
+      this.add
+        .text(x, GAME_HEIGHT / 2 - 140, step.heading, {
+          fontFamily: FONTS.body,
+          fontSize: '26px',
+          color: COLORS.danger,
+        })
+        .setOrigin(0.5)
+
+      this.add
+        .text(x, GAME_HEIGHT / 2 - 100, step.caption, {
+          fontFamily: FONTS.body,
+          fontSize: '30px',
+          color: COLORS.muted,
+          align: 'center',
+          wordWrap: { width: columnWidth },
+        })
+        .setOrigin(0.5)
+
+      this.add
+        .image(x, GAME_HEIGHT / 2 + 30, 'others', step.frame)
+        .setScale(Math.min(1, (columnWidth * 1.1) / 200))
+    })
+
+    createTextButton(this, GAME_WIDTH / 2, GAME_HEIGHT - marginY, {
       label: 'Give me some zombies',
-      width: 320,
+      width: GAME_WIDTH / 2,
       height: 70,
       fill: COLORS.accent,
+      fontSize: 58,
       onClick: () => this.scene.start('Game', { level: 1 }),
     })
 
-    onLayout(this, () => this.layout())
-  }
-
-  private layout(): void {
-    const { width, height } = this.scale
-    const marginX = width * MARGIN_X_PCT * 0.01
-    const gutterX = width * GUTTER_X_PCT * 0.01
-    const columnWidth = width * COLUMN_PCT * 0.01
-    const marginY = height * MARGIN_Y_PCT * 0.01
-    const font = fontScale(this)
-
-    this.title.setPosition(width / 2, marginY / 2)
-    this.title.setFontSize(`${Math.round(60 * font)}px`)
-
-    const firstX = marginX + columnWidth / 2
-    this.headings.forEach((heading, index) => {
-      const x = firstX + index * (columnWidth + gutterX)
-      heading.setPosition(x, height / 2 - 140)
-      heading.setFontSize(`${Math.round(26 * font)}px`)
-
-      this.captions[index]?.setPosition(x, height / 2 - 100)
-      this.captions[index]?.setFontSize(`${Math.round(30 * font)}px`)
-      this.captions[index]?.setWordWrapWidth(columnWidth)
-
-      const art = this.art[index]
-      if (!art) return
-      // The original drew each control diagram at its native size, centred in
-      // the column; only shrink if the column is narrower than the art.
-      const scale = Math.min(1, (columnWidth * 1.1) / art.width) * font
-      art.setPosition(x, height / 2 + 30).setScale(scale)
+    bindScreenKeys(this, {
+      confirm: () => this.scene.start('Game', { level: 1 }),
+      back: () => this.scene.start('LevelSelect'),
+      mute: () => toggleMute(this),
     })
-
-    this.button.layout(width / 2, height - marginY, width / 2, 70, 58 * font)
   }
 }

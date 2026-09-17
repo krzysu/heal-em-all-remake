@@ -3,16 +3,31 @@
  */
 
 /**
- * Design resolution and the reference frame for menu layout.
+ * Design resolution. Every scene is authored against this fixed 1920x1080 frame
+ * and the engine scales the canvas up or down with `Phaser.Scale.FIT`, so no
+ * scene code does percentage math or listens for resize.
  *
- * The original rendered its canvas at the full window size at 1:1 (`maximize`
- * with `upsampleWidth: 640` / `upsampleHeight: 320` never triggering on a
- * desktop window), so the world is drawn 1:1 in CSS pixels. The remaster uses
- * Phaser's RESIZE mode to do the same; these values stay as the reference the
- * menu scenes lay themselves out against.
+ * Size matters for sharpness: the canvas is rendered at exactly this resolution
+ * and then CSS-scaled into the window. A small frame like 640x320 renders only
+ * 640x320 real pixels and gets stretched ~3x on a 1080p display, which blurs
+ * text badly. 1920x1080 renders 1:1 on the common desktop case, so fonts are
+ * crisp there and only upscale on larger displays.
+ *
+ * The art itself is 1x only (a character frame is 50x100, the HUD bar 55x124),
+ * so it is displayed at roughly its native pixels inside this frame, matching
+ * how the original drew the same assets at 1:1 against the live window.
  */
-export const GAME_WIDTH = 640
-export const GAME_HEIGHT = 320
+export const GAME_WIDTH = 1920
+export const GAME_HEIGHT = 1080
+
+/**
+ * How much world fits on screen, as a logical view height in design-space
+ * pixels. The camera zooms by `GAME_HEIGHT / WORLD_VIEW_HEIGHT`, so a smaller
+ * number shows less of a level (bigger sprites). The original showed roughly
+ * 1.5 screens of a level at once; 640 restores that framing in the 1080-tall
+ * design space without touching any gameplay tuning.
+ */
+export const WORLD_VIEW_HEIGHT = 640
 
 /** Original maps use 70px tiles. Keep the art's native grid. */
 export const TILE_SIZE = 70
@@ -51,7 +66,6 @@ export const ASSETS = {
     others: 'images/others.png',
     bullet: 'images/bullet.png',
     mapTiles: 'images/map_tiles.png',
-    gradientTop: 'images/gradient-top.png',
     /** Blurred backdrop inside a level, from the original level tilesets. */
     background: 'images/bg-blured.jpg',
     /** Crisp graveyard art the original used as the page background. */

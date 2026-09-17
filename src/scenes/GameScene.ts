@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { COLORS, TILE_SIZE, TUNING } from '../config'
+import { COLORS, GAME_HEIGHT, TILE_SIZE, TUNING, WORLD_VIEW_HEIGHT } from '../config'
 import { bus, Events, GameState, type RunState } from '../state/GameState'
 import { Player, type PlayerMode } from '../entities/Player'
 import { Zombie } from '../entities/Zombie'
@@ -202,23 +202,34 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, worldWidth, this.mapHeightPx)
     this.cameras.main.setBackgroundColor(COLORS.bg)
     this.cameras.main.roundPixels = true
+    // Show the level at the original's framing: the design space is 1080 tall
+    // but the world wants a much closer view, so the camera carries the zoom and
+    // every world coordinate (spawns, physics, tiles) stays in level pixels.
+    const zoom = GAME_HEIGHT / WORLD_VIEW_HEIGHT
+    this.cameras.main.setZoom(zoom)
 
-    // The world renders 1:1 like the original, so the backdrop has to cover the
-    // whole (resizable) window rather than a fixed design resolution.
+    // Backdrop fills the whole view at every zoom, so it is sized in world units
+    // (the visible world is smaller than the design space once zoomed) and pinned
+    // to the camera centre, which scroll factor 0 keeps on screen.
     this.backdrop = this.add
-      .tileSprite(0, 0, this.scale.width, this.scale.height, 'background')
-      .setOrigin(0)
+      .tileSprite(0, 0, this.scale.width / zoom, this.scale.height / zoom, 'background')
+      .setOrigin(0.5)
       .setScrollFactor(0)
       .setAlpha(0.35)
       .setDepth(-100)
+    this.syncBackdrop(zoom)
 
-    const onResize = (): void => {
-      this.backdrop.setSize(this.scale.width, this.scale.height)
-    }
+    const onResize = (): void => this.syncBackdrop(zoom)
     this.scale.on(Phaser.Scale.Events.RESIZE, onResize)
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, onResize)
     })
+  }
+
+  /** Centres the backdrop on the zoomed camera's visible area. */
+  private syncBackdrop(zoom: number): void {
+    this.backdrop.setSize(this.scale.width / zoom, this.scale.height / zoom)
+    this.backdrop.setPosition(this.scale.width / (2 * zoom), this.scale.height / (2 * zoom))
   }
 
   private spawnEntities(spawns: ReturnType<typeof getLevelSpawns>): void {
@@ -351,6 +362,8 @@ export class GameScene extends Phaser.Scene {
 
     keyboard.on('keydown-ESC', () => this.scene.start('LevelSelect'))
     keyboard.on('keydown-R', () => this.scene.restart({ level: this.level }))
+    // P and M live on the HUD scene, which owns the pause overlay and the audio
+    // button; Space is deliberately not a confirm here because it fires the gun.
   }
   private publishRunState(): void {
     bus.emit(Events.livesChanged, this.run.lives)
