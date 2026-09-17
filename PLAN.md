@@ -92,11 +92,16 @@ objects and picks one of four mirrored layouts at random.
 
 Rendering also matches the original: its canvas was the window size and the
 world was drawn 1:1 (the `upsampleWidth: 640` branch never fired on desktop),
-so the remaster uses Phaser's `RESIZE` mode at zoom 1. Menu scenes keep their
-640x320 design coordinates by zooming their camera by the design-to-window
-ratio (`src/ui/layout.ts`). The HUD is a 1:1 rebuild of `hud.coffee`: the 124px
-gradient bar, the doctor's head with a speech bubble, and icon counters chained
-from the right edge, plus the pause and menu buttons.
+so the remaster uses Phaser's `RESIZE` mode at zoom 1. Menus do **not** use a
+design space either: the original drove every menu from percentages of the live
+window (`Q.width * 0.24`, `Q.height * 0.22`) with literal-pixel font sizes, so
+`src/ui/layout.ts` exposes `onLayout(scene, fn)` and each scene lays itself out
+in real screen pixels, re-running on `RESIZE`. `pixelArt`/`roundPixels` are off
+to match the original's smooth art and web-font rendering. The HUD is a 1:1
+rebuild of `hud.coffee`: the 124px gradient bar, the doctor's head with a speech
+bubble, and icon counters chained from the right edge, plus the pause and menu
+buttons. Input follows the original Quintus bindings: up/X/W jump and space/Z
+fire.
 
 ### Phase 3 — Combat & enemy variety (next)
 Shipped: Zombie Mode (zero lives turns the doctor into a ZombiePlayer — slower,

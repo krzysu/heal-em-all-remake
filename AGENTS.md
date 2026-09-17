@@ -41,10 +41,23 @@ type-aware lint rules — they cannot work here.
   `src/assets/legacyAtlas.ts` into frames named `"<name>:<index>"`. Never edit
   `public/assets` (also excluded from Prettier and oxlint).
 - **Rendering is 1:1 like the original**: `Phaser.Scale.RESIZE`, camera zoom 1,
-  world drawn in CSS pixels. `GAME_WIDTH`/`GAME_HEIGHT` (640x320) are the design
-  space for menu scenes only — menus zoom their camera via `src/ui/layout.ts`.
-  HUD and backdrops must measure `this.scale.width/height` and re-layout on the
-  `RESIZE` event, never assume `GAME_WIDTH`.
+  world drawn in CSS pixels. `pixelArt`/`roundPixels` are **off**: the art is
+  vector-ish and the UI is web fonts, so nearest-neighbour sampling looked harsher
+  than the source rather than sharper.
+- **Menus lay out in percentages of the live window, not a design space.** The
+  original set `Q.width`/`Q.height` to the window and used `Q.width * 0.24`,
+  `Q.height * 0.22`, etc. per axis, so the layout adapts to any aspect ratio.
+  Do **not** reintroduce a camera zoom for menus — a single zoom factor stretched
+  the level-select grid. Use `onLayout(scene, fn)` from `src/ui/layout.ts` to run
+  a layout immediately and again on `RESIZE`. `GAME_WIDTH`/`GAME_HEIGHT` are only
+  the initial window size now, and HUD/backdrops must measure
+  `this.scale.width/height` too.
+- **Menu font sizes are literal pixels**, exactly as in the original: a 60px
+  heading stays 60px on a 1080-tall or 1440-tall window. Do not scale fonts by
+  the height ratio; `fontScale()` is a 1:1 placeholder for that reason.
+- **Controls follow the original Quintus bindings**: up arrow / X (`action`) and
+  W jump; space / Z (`fire`) shoot; arrows or A/D move. Space deliberately does
+  **not** count as held-jump, or firing would siphon jump height.
 - **State is split on purpose**: `src/state/store.ts` is Phaser-free and unit
   tested; `src/state/GameState.ts` re-exports it and owns the Phaser event bus.
   Put new persistent/run logic in `store.ts`.
