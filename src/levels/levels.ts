@@ -80,6 +80,33 @@ const SPAWN_OVERRIDES: Record<number, { zombies: ZombieSpawn[]; items: ItemSpawn
   },
 }
 
+/**
+ * Level 5 is a symmetric arena: the original skipped the map's Key/Door/Health
+ * objects and instead picked one of four mirrored placements at random, then
+ * always added two more health pickups. Ported from `level5.coffee`.
+ */
+const LEVEL5_LAYOUTS: { door: Point; sign: Point; key: Point; health: Point[] }[] = [
+  { door: tilePos(50, 3), sign: tilePos(48, 3), key: tilePos(49.5, 39), health: [tilePos(5, 21), tilePos(94, 21)] },
+  { door: tilePos(49, 39), sign: tilePos(51, 39), key: tilePos(49.5, 3), health: [tilePos(5, 21), tilePos(94, 21)] },
+  { door: tilePos(4, 21), sign: tilePos(6, 21), key: tilePos(94, 21), health: [tilePos(49.5, 39), tilePos(49.5, 3)] },
+  { door: tilePos(95, 21), sign: tilePos(93, 21), key: tilePos(5, 21), health: [tilePos(49.5, 39), tilePos(49.5, 3)] },
+]
+
+const LEVEL5_BONUS_HEALTH = [tilePos(4.5, 6), tilePos(94.5, 7)]
+
+/** TMX pickups it still wants plus the randomised layout, minus the skipped kinds. */
+function level5Items(base: ItemSpawn[]): ItemSpawn[] {
+  const layout = LEVEL5_LAYOUTS[Math.floor(Math.random() * LEVEL5_LAYOUTS.length)] ?? LEVEL5_LAYOUTS[0]!
+  return [
+    ...base.filter((item) => item.kind !== 'key' && item.kind !== 'door' && item.kind !== 'health'),
+    { kind: 'key', ...layout.key },
+    { kind: 'door', ...layout.door },
+    { kind: 'exit_sign', ...layout.sign },
+    ...layout.health.map((point): ItemSpawn => ({ kind: 'health', ...point })),
+    ...LEVEL5_BONUS_HEALTH.map((point): ItemSpawn => ({ kind: 'health', ...point })),
+  ]
+}
+
 const ITEM_KINDS: Record<string, ItemKind> = {
   key: 'key',
   door: 'door',
@@ -132,7 +159,7 @@ export function getLevelSpawns(level: number, tmx: TmxMap): LevelSpawns {
     spawn.archetype = archetypes[index] ?? 'walker'
   })
 
-  return { player, zombies, items: base.items.map((item) => ({ ...item })) }
+  return { player, zombies, items: level === 5 ? level5Items(base.items) : base.items.map((item) => ({ ...item })) }
 }
 
 /**
