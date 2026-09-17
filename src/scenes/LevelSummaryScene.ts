@@ -130,15 +130,15 @@ export class LevelSummaryScene extends Phaser.Scene {
     })
 
     // `x = -80 - 20` in the original: first skull one width plus a 20px gap
-    // left of the column centre, then stepped by width + 20.
-    const starScale = (columnWidth / 2) * 0.0016 * font
+    // left of the column centre, then stepped by width + 20. The original drew
+    // them at native size (80x90), which is what the reference screenshot shows.
     const skullStep = SKULL_WIDTH + 20
     this.skulls.forEach((skull, index) => {
       skull.setPosition(
         starsX + (-skullStep * 1.5 + index * skullStep),
         height / 2 - LINE_HEIGHT / 2,
       )
-      skull.setScale(starScale <= 0 ? 1 : starScale)
+      skull.setScale(1)
     })
 
     const buttonWidth = width / 4
