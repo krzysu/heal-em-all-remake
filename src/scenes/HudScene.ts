@@ -1,8 +1,9 @@
 import Phaser from 'phaser'
-import { COLORS, FONTS, GAME_HEIGHT, WORLD_VIEW_HEIGHT } from '../config'
+import { COLORS, FONTS, WORLD_ZOOM } from '../config'
 import { bus, Events, GameState } from '../state/GameState'
 import { bindScreenKeys } from '../ui/keyboard'
 import { applyMutedState, toggleMute } from '../ui/audioButton'
+import { TouchControls } from '../ui/touchControls'
 
 /**
  * HUD rebuilt to the original `hud.coffee` layout: a gradient bar, the doctor's
@@ -20,7 +21,7 @@ import { applyMutedState, toggleMute } from '../ui/audioButton'
  * the HUD carries the identical zoom to keep the doctor's head, the counters
  * and the world art in the same proportion as the original.
  */
-const HUD_ZOOM = GAME_HEIGHT / WORLD_VIEW_HEIGHT
+const HUD_ZOOM = WORLD_ZOOM
 
 /** Vertical fade height, from the original's 124px `gradient-top.png` bar. */
 const BAR_HEIGHT = 124
@@ -69,6 +70,7 @@ export class HudScene extends Phaser.Scene {
   private backButton!: Phaser.GameObjects.Image
   private pauseOverlay?: Phaser.GameObjects.Container | undefined
   private paused = false
+  private touchControls?: TouchControls
 
   private lives = 3
   private bullets = 0
@@ -125,6 +127,7 @@ export class HudScene extends Phaser.Scene {
 
     this.refresh()
     this.layout()
+    this.touchControls = new TouchControls(this)
 
     bus.on(Events.livesChanged, this.onLives, this)
     bus.on(Events.bulletsChanged, this.onBullets, this)
@@ -258,6 +261,7 @@ export class HudScene extends Phaser.Scene {
 
     this.layoutBubble()
     this.layoutPauseOverlay()
+    this.touchControls?.layout()
   }
   private layoutBubble(): void {
     const text = this.bubbleText.text
@@ -340,12 +344,14 @@ export class HudScene extends Phaser.Scene {
       this.pauseOverlay = undefined
       this.scene.resume('Game')
       this.sound.resumeAll()
+      this.touchControls?.setPaused(false)
       return
     }
 
     this.paused = true
     this.scene.pause('Game')
     this.sound.pauseAll()
+    this.touchControls?.setPaused(true)
 
     // Positioned in the HUD's own (zoomed) coordinate space, so it centres on
     // screen rather than on the design space the camera no longer maps 1:1.

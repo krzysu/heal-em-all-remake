@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
-import { COLORS, GAME_HEIGHT, TILE_SIZE, TUNING, WORLD_VIEW_HEIGHT } from '../config'
+import { COLORS, TILE_SIZE, TUNING, WORLD_ZOOM } from '../config'
 import { bus, Events, GameState, type RunState } from '../state/GameState'
+import { touchInput } from '../ui/touchInput'
 import { Player, type PlayerMode } from '../entities/Player'
 import { Zombie } from '../entities/Zombie'
 import { Human } from '../entities/Human'
@@ -105,17 +106,20 @@ export class GameScene extends Phaser.Scene {
       this.physics.world.timeScale = 1
     }
 
-    const jumpPressed = this.jumpQueued
+    const jumpPressed = this.jumpQueued || touchInput.jumpQueued
     this.jumpQueued = false
+    touchInput.jumpQueued = false
 
     // Original jump inputs are up / X ('action'); space fires, so it must not
-    // also count as held-jump or firing would siphon jump height.
-    const jumpHeld = this.cursors.up.isDown || this.keyX.isDown || this.keyW.isDown
+    // also count as held-jump or firing would siphon jump height. Touch controls
+    // mirror the keyboard exactly.
+    const jumpHeld =
+      this.cursors.up.isDown || this.keyX.isDown || this.keyW.isDown || touchInput.jumpHeld
 
     this.player.move(
       {
-        left: this.cursors.left.isDown || this.keyA.isDown,
-        right: this.cursors.right.isDown || this.keyD.isDown,
+        left: this.cursors.left.isDown || this.keyA.isDown || touchInput.left,
+        right: this.cursors.right.isDown || this.keyD.isDown || touchInput.right,
         jumpPressed,
         jumpHeld,
       },
@@ -205,7 +209,7 @@ export class GameScene extends Phaser.Scene {
     // Show the level at the original's framing: the design space is 1080 tall
     // but the world wants a much closer view, so the camera carries the zoom and
     // every world coordinate (spawns, physics, tiles) stays in level pixels.
-    const zoom = GAME_HEIGHT / WORLD_VIEW_HEIGHT
+    const zoom = WORLD_ZOOM
     this.cameras.main.setZoom(zoom)
 
     // Backdrop fills the whole view at every zoom, so it is sized in world units
@@ -377,7 +381,12 @@ export class GameScene extends Phaser.Scene {
 
   private handleWeapon(time: number): void {
     if (!this.player.armed || this.player.isZombie) return
-    if (!(this.keyFire.isDown || this.keyFireZ.isDown) || time < this.nextFireAt) return
+    if (
+      !(this.keyFire.isDown || this.keyFireZ.isDown || touchInput.fireHeld) ||
+      time < this.nextFireAt
+    ) {
+      return
+    }
 
     if (this.run.bullets <= 0) {
       this.nextFireAt = time + TUNING.fireCooldownMs

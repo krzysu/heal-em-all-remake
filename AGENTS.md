@@ -46,17 +46,27 @@ type-aware lint rules — they cannot work here.
   1920x1080 and is CSS-scaled, so text is crisp at 1080p instead of being stretched
   from a small frame. Trade-off: non-2:1 windows get letterbox bars, and resize
   never re-runs scene layout code.
-- **World and HUD share one zoom, menus use none.** `WORLD_VIEW_HEIGHT` (640) is a
-  logical view height: `GameScene` zooms its camera by `GAME_HEIGHT /
-  WORLD_VIEW_HEIGHT` (~1.69) so a level is framed like the original, and `HudScene`
-  applies the *same* zoom so the two stay in proportion. The HUD anchors that
-  zoomed camera to the top-left with `setOrigin(0, 0)` + `setScroll(0, 0)` and
-  measures itself with `viewWidth(scene) = scale.width / HUD_ZOOM`. Menu scenes
-  keep zoom 1 and lay out once in `create()` against `GAME_WIDTH`/`GAME_HEIGHT`; do
-  **not** add a resize listener or percentage math to them.
+- **World and HUD share one zoom, menus use none.** `WORLD_VIEW_HEIGHT` (640, now a
+  private constant) is a logical view height: `GameScene` zooms its camera by
+  `WORLD_ZOOM` (`GAME_HEIGHT / WORLD_VIEW_HEIGHT`, ~1.69) so a level is framed like
+  the original, and `HudScene` applies the *same* zoom so the two stay in proportion.
+  The HUD anchors that zoomed camera to the top-left with `setOrigin(0, 0)` +
+  `setScroll(0, 0)` and measures itself with `viewWidth(scene) = scale.width /
+  WORLD_ZOOM`. Menu scenes keep zoom 1 and lay out once in `create()` against
+  `GAME_WIDTH`/`GAME_HEIGHT`; do **not** add a resize listener or percentage math to
+  them.
 - **Controls follow the original Quintus bindings**: up arrow / X (`action`) and
   W jump; space / Z (`fire`) shoot; arrows or A/D move. Space deliberately does
   **not** count as held-jump, or firing would siphon jump height.
+- **Touch is a parallel input, not a replacement.** `src/ui/touchControls.ts`
+  lives in `HudScene` (that camera is origin 0,0 with `WORLD_ZOOM`, so hit-testing
+  is `pointer / WORLD_ZOOM`) and writes to the shared `touchInput` singleton in
+  `src/ui/touchInput.ts`; `GameScene` polls it alongside the keyboard. Controls
+  show only for `(pointer: coarse)`, force-testable with `?touch=1`. The touch
+  plugin is enabled unconditionally in the game config, and `activePointers` is
+  raised so move + jump + fire can be held together. A portrait gate
+  (`src/ui/orientation.ts`) sleeps the loop and pauses audio; it hooks
+  `POST_STEP`, not `READY`, because the loop is not running at `READY`.
 - **Every screen has keyboard navigation** via `bindScreenKeys` in
   `src/ui/keyboard.ts`: Enter/Space confirm, Esc back, and P pause / M mute while
   in a level (P and M are bound on `HudScene`, which owns the pause overlay and the

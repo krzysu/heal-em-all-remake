@@ -128,10 +128,18 @@ All six original levels already load and play. Extend them with new act(s),
 boss encounters, and challenge + endless modes.
 
 ### Phase 6 — Polish, mobile & ship
-Virtual controls, mobile safe-area layout, audio unlock, performance pass,
-cross-browser (Safari/iOS) QA, static deploy. Note the fixed design space already
-handles window scaling via `Scale.FIT`; non-2:1 windows letterbox rather than
-reflow.
+Shipped: on-screen touch controls (a two-way movement pad bottom-left plus jump
+and fire buttons bottom-right, drawn with Graphics, matched to the HUD camera's
+zoom), multi-touch pointers (`input.activePointers`), a portrait rotate-to-
+landscape gate that sleeps the loop and pauses audio, safe-area insets on the
+canvas container, and a `netlify.toml` (pnpm build -> `dist`, immutable caching
+for hashed assets). Web Audio unlock is handled by Phaser on the first gesture,
+verified working. Touch controls appear only when `(pointer: coarse)` matches, or
+with a `?touch=1` override for QA.
+
+Still to do: a real Safari/iOS device pass, and an actual Netlify deploy (the
+build config is in place). Note the fixed design space already handles window
+scaling via `Scale.FIT`; non-2:1 windows letterbox rather than reflow.
 
 ## Known gotchas
 - The original custom polygon collider (`[-15,-50]..[25,50]`) is approximated
@@ -173,6 +181,9 @@ src/
     keyboard.ts      Shared Enter/Space, Esc, P, M bindings for every screen
     layout.ts        Backdrop + screen-size helpers for menu scenes
     audioButton.ts   Mute button and persistence (`zombieGame:muted`)
+    touchInput.ts    Shared touch-control state + device detection
+    touchControls.ts On-screen movement pad + jump/fire buttons (HudScene)
+    orientation.ts   Portrait rotate-to-landscape gate
   levels/
     tmx.ts           Runtime TMX -> Phaser tilemap parser
     levels.ts        Per-level player start + spawn tables

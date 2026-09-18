@@ -27,7 +27,14 @@ export const GAME_HEIGHT = 1080
  * 1.5 screens of a level at once; 640 restores that framing in the 1080-tall
  * design space without touching any gameplay tuning.
  */
-export const WORLD_VIEW_HEIGHT = 640
+const WORLD_VIEW_HEIGHT = 640
+
+/**
+ * Camera zoom that frames a level like the original. `GameScene` and `HudScene`
+ * share it so the world and the HUD stay in proportion; the HUD's view space is
+ * therefore `scale.width / WORLD_ZOOM` wide (see `ui/touchControls.ts`).
+ */
+export const WORLD_ZOOM = GAME_HEIGHT / WORLD_VIEW_HEIGHT
 
 /** Original maps use 70px tiles. Keep the art's native grid. */
 export const TILE_SIZE = 70

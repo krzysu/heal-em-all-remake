@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { COLORS, GAME_HEIGHT, GAME_WIDTH, TUNING } from './config'
+import { installOrientationGate } from './ui/orientation'
 import { BootScene } from './scenes/BootScene'
 import { PreloadScene } from './scenes/PreloadScene'
 import { StartScene } from './scenes/StartScene'
@@ -22,6 +23,14 @@ const config: Phaser.Types.Core.GameConfig = {
   // made the remaster look harsher than the source rather than sharper.
   pixelArt: false,
   roundPixels: false,
+  // Touch controls need several simultaneous pointers: move + jump + fire.
+  // The touch plugin defaults to on only for touch-capable devices; enabling it
+  // unconditionally is harmless (mouse still works) and keeps the controls
+  // testable with the `?touch=1` override.
+  input: {
+    activePointers: 4,
+    touch: true,
+  },
   title: "Heal'em All",
   version: '0.1.0',
   scale: {
@@ -53,6 +62,8 @@ const config: Phaser.Types.Core.GameConfig = {
 }
 
 export const game = new Phaser.Game(config)
+
+installOrientationGate(game)
 
 // Dev-only handle so the game can be driven from the console / automated smoke
 // checks. Stripped from production builds.
