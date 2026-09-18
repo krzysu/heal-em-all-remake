@@ -130,3 +130,23 @@ toggle pause from `HudScene`. Pause, mute and Esc all read back via
 
 - No comments unless they explain *why*; ASCII only.
 - One-line commits: `<prefix>: <imperative summary>`; commit only when asked.
+
+<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:opencode -->
+
+## Issue Tracking with bd (beads)
+
+This project uses **bd** for ALL issue tracking - no markdown TODOs, no external
+trackers. Issues live in a local Dolt DB; cross-machine sync uses
+`bd dolt push/pull` (stored under `refs/dolt/data` on the git remote);
+`.beads/issues.jsonl` is a passive export, not the wire protocol.
+
+```bash
+bd prime                              # Full workflow context (source of truth)
+bd ready                              # Issues ready to work (no blockers)
+bd create "title" -t task -p 2        # Create a new issue
+bd update <id> --claim                # Claim work atomically
+bd close <id>                         # Mark complete
+bd dolt push                          # Sync with remote when authorized
+```
+
+<!-- END BEADS INTEGRATION -->

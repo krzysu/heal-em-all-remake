@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "heal_em_all_remake",
+  "project_id": "834fbcb8-9406-47a7-8bc1-e48a86ca5764"
+}

@@ -1,0 +1,46 @@
+#!/bin/sh
+# commit-msg hook: enforce single-line commit messages with a semantic prefix.
+#
+# Per AGENTS.md (project root):
+#   "Commit messages must be single line — no body, no multi-line. Always
+#    lead with a semantic prefix."
+#
+# Allowed prefixes: feat, fix, docs, refactor, test, chore, perf, style,
+# build, ci.
+
+MSG_FILE="$1"
+
+# Strip blank lines and # comments, then count what remains.
+BODY=$(grep -v '^#' "$MSG_FILE" | grep -v '^$')
+
+# Skip merge commits, fixup!/squash! commits, and amend/revert auto-bodies.
+FIRST=$(printf '%s\n' "$BODY" | head -n 1)
+case "$FIRST" in
+    "Merge "*|"Revert "*|"fixup! "*|"squash! "*|"amend! "*)
+        exit 0
+        ;;
+esac
+
+# Rule 1: single-line only.
+if [ "$(printf '%s\n' "$BODY" | wc -l)" -gt 1 ]; then
+    echo "commit-msg: refusing multi-line commit message." >&2
+    echo "  AGENTS.md: 'Commit messages must be single line — no body, no multi-line.'" >&2
+    echo "  Got:" >&2
+    printf '    %s\n' $BODY >&2
+    exit 1
+fi
+
+# Rule 2: semantic prefix.
+PREFIX=$(printf '%s' "$FIRST" | sed -n 's/^\([a-z]*\): .*/\1/p')
+
+case "$PREFIX" in
+    feat|fix|docs|refactor|test|chore|perf|style|build|ci)
+        exit 0
+        ;;
+    *)
+        echo "commit-msg: commit must start with a semantic prefix." >&2
+        echo "  Allowed: feat, fix, docs, refactor, test, chore, perf, style, build, ci" >&2
+        echo "  Got: $FIRST" >&2
+        exit 1
+        ;;
+esac

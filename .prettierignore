@@ -3,4 +3,5 @@ node_modules
 .playwright-mcp
 pnpm-lock.yaml
 public/assets
+.beads
 *.md
