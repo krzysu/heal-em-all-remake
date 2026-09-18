@@ -1,20 +1,16 @@
 # Heal'em All — Remaster Plan
 
-Rebuild the original 2013 HTML5 game on a modern stack, reusing the original art
-and audio, but taking the gameplay well beyond the original.
+Rebuild the original 2013 HTML5 game on a modern stack, reusing the original art and audio, but taking the gameplay well beyond the original.
 
 - **Source game:** `../game-heal-em-all` (Quintus 0.2.0, CoffeeScript, Grunt, Node 4.8)
 - **This project:** Vite + TypeScript + Phaser 4, vanilla ESM
 
 ## Why a rewrite, not a port
 
-The thing that is dead is the engine, not the game. Quintus 0.2.0 has had no
-release since ~2014 and the build toolchain pins Node 4.8 + Grunt + CoffeeScript.
-The assets and level data are engine-agnostic, so they carry over untouched, and
-the ~3,100 LOC of game code is straightforward to reimplement. Patching Quintus
-internals would cost more than rewriting the logic.
+The thing that is dead is the engine, not the game. Quintus 0.2.0 has had no release since ~2014 and the build toolchain pins Node 4.8 + Grunt + CoffeeScript. The assets and level data are engine-agnostic, so they carry over untouched, and the ~3,100 LOC of game code is straightforward to reimplement. Patching Quintus internals would cost more than rewriting the logic.
 
 ### What carries over unchanged
+
 - `public/assets/images/*` — spritesheets (characters, items, hud, others, bullet, map_tiles, bg)
 - `public/assets/audio/*` — mp3 + ogg, same filenames
 - `public/assets/source-art/*` — the editable source art
@@ -22,6 +18,7 @@ internals would cost more than rewriting the logic.
 - `public/assets/data/*.json` — hand-authored sprite atlas frames
 
 ### What is dropped
+
 - `quintus*.js`, `quintus-all-old.js`, `stats.min.js`, `howler.js` (Howler is loaded but unused)
 - The checked-in compiled `app/scripts/game.js`
 - The Grunt/SASS/usemin/JSHint toolchain
@@ -29,31 +26,20 @@ internals would cost more than rewriting the logic.
 
 ## Design pillars (beyond the original)
 
-The original was a slow, careful "heal the zombies" puzzle-platformer. The
-remaster keeps the identity but raises the action ceiling.
+The original was a slow, careful "heal the zombies" puzzle-platformer. The remaster keeps the identity but raises the action ceiling.
 
-1. **Action platformer first.** Coyote time, jump buffering, variable jump
-   height, double jump, dash with i-frames, air control. Responsive, snappy.
-2. **Combat with texture.** Multiple weapons (heal pistol, spread, charge shot,
-   melee stun), reload/ammo tension, hit-stop, screen shake, muzzle flash,
-   impact particles, heal bursts when a zombie converts.
-3. **Enemy variety.** Walker (original), runner, brute (armoured, needs charge
-   shot), spitter (ranged), screamer (alerts the level). A boss per act.
-4. **Zombie Mode as a real mechanic.** Originally a punishment. Make it a
-   temporary, voluntary risk/reward state: faster, melee-only, cannibalises
-   zombies to keep the timer alive, but humans flee.
-5. **Juice everywhere.** Tweens on pickup, camera shake, hit flash, parallax
-   background, animated UI, diegetic sound cues.
-6. **Progression.** More levels across themed acts, star thresholds, per-level
-   medals, unlockable upgrades between levels, an endless/challenge mode,
-   best-run leaderboard stored locally.
-7. **Feel on mobile.** Real virtual stick + buttons, haptics where available,
-   safe-area aware layout, orientation gate done right.
+1. **Action platformer first.** Coyote time, jump buffering, variable jump height, double jump, dash with i-frames, air control. Responsive, snappy.
+2. **Combat with texture.** Multiple weapons (heal pistol, spread, charge shot, melee stun), reload/ammo tension, hit-stop, screen shake, muzzle flash, impact particles, heal bursts when a zombie converts.
+3. **Enemy variety.** Walker (original), runner, brute (armoured, needs charge shot), spitter (ranged), screamer (alerts the level). A boss per act.
+4. **Zombie Mode as a real mechanic.** Originally a punishment. Make it a temporary, voluntary risk/reward state: faster, melee-only, cannibalises zombies to keep the timer alive, but humans flee.
+5. **Juice everywhere.** Tweens on pickup, camera shake, hit flash, parallax background, animated UI, diegetic sound cues.
+6. **Progression.** More levels across themed acts, star thresholds, per-level medals, unlockable upgrades between levels, an endless/challenge mode, best-run leaderboard stored locally.
+7. **Feel on mobile.** Real virtual stick + buttons, haptics where available, safe-area aware layout, orientation gate done right.
 
 ## Stack
 
 | Concern | Choice |
-|---|---|
+| --- | --- |
 | Engine | Phaser 4 (`^4.2.1`) — WebGL2 renderer, v3-compatible API |
 | Language | TypeScript (`strict`, no `any`) |
 | Build/dev | Vite 8 |
@@ -66,112 +52,52 @@ remaster keeps the identity but raises the action ceiling.
 
 ## Migration phases
 
-Quality gates (typecheck, lint, format, tests, knip, build) are documented in
-`AGENTS.md`; run `pnpm check` before calling a change done.
+Quality gates (typecheck, lint, format, tests, knip, build) are documented in `AGENTS.md`; run `pnpm check` before calling a change done.
 
 ### Phase 1 — Scaffold ✅ (this project)
-Vite + TS + Phaser 4 project, asset pipeline, scene skeleton, state store,
-boot/preload/start/level-select flows running, HUD and level scenes stubbed.
+
+Vite + TS + Phaser 4 project, asset pipeline, scene skeleton, state store, boot/preload/start/level-select flows running, HUD and level scenes stubbed.
 
 ### Phase 2 — Vertical slice: one level, fully playable ✅
-All six original levels load from their untouched `.tmx` files via a small
-runtime XML reader (`src/levels/tmx.ts`) that builds a Phaser array tilemap
-(collision) plus a decoration layer — no resave step, no duplicated data.
-Movement is a modern take on the original: gravity 1400, jump -820 (~3.4
-tiles), double jump, coyote time, jump buffering, variable jump height and a
-fall-speed cap. Ported and wired end to end: patrolling zombies with the
-original ledge + 350px line-of-sight AI, healing bullets, humans that revert
-when touched, key / door / gun / health pickups, live HUD with an info line,
-lives, fall-out recovery, per-level summary with stars, save progress.
 
-Spawn data lives in `src/levels/levels.ts`: levels 1-2 use explicit tables
-ported from the original scene scripts (they hardcoded their entities), levels
-3-6 are read from the TMX object groups exactly like `addObjectsToStage` did.
-Level 5 keeps the original's gimmick: it ignores the map's Key/Door/Health
-objects and picks one of four mirrored layouts at random.
+All six original levels load from their untouched `.tmx` files via a small runtime XML reader (`src/levels/tmx.ts`) that builds a Phaser array tilemap (collision) plus a decoration layer — no resave step, no duplicated data. Movement is a modern take on the original: gravity 1400, jump -820 (~3.4 tiles), double jump, coyote time, jump buffering, variable jump height and a fall-speed cap. Ported and wired end to end: patrolling zombies with the original ledge + 350px line-of-sight AI, healing bullets, humans that revert when touched, key / door / gun / health pickups, live HUD with an info line, lives, fall-out recovery, per-level summary with stars, save progress.
 
-Rendering is adaptive rather than fixed: scenes are authored against
-`GAME_WIDTH`/`GAME_HEIGHT` (1920x1080) but the canvas runs in `Phaser.Scale.EXPAND`,
-which grows that base on whichever axis has spare room to fill the window with no
-letterbox bars (a wide monitor sees more world horizontally, a 16:10 laptop more
-vertically) while keeping 1 design px = 1 canvas px, so text stays crisp. Scenes
-read the live `scale.width`/`scale.height` and re-layout on `RESIZE`. Menus go
-through `createMenuFrame` (`src/ui/layout.ts`), which centres the camera on the
-authored content and zooms it to fill the window, capped by `uiScale(scene)` -- a
-viewport-height-driven factor that makes text and buttons larger than the old fixed
-layout. `WORLD_ZOOM` (`GAME_HEIGHT / WORLD_VIEW_HEIGHT`, ~1.69) frames levels like
-the original; `HudScene` zooms by `WORLD_ZOOM * uiScale` so the HUD and touch
-controls are a little larger than the world. `pixelArt`/`roundPixels` are off to
-match the original's smooth art and web-font rendering. The HUD rebuilds
-`hud.coffee`: the 124px gradient bar (drawn as a `fillGradientStyle` ramp, no
-texture), the doctor's head with a speech bubble, and icon counters chained from
-the right edge, plus the pause and menu buttons. Input follows the original Quintus
-bindings (up/X/W jump, space/Z fire) and every screen also supports Enter/Space to
-confirm, Esc to go back, P to pause and M to mute.
+Spawn data lives in `src/levels/levels.ts`: levels 1-2 use explicit tables ported from the original scene scripts (they hardcoded their entities), levels 3-6 are read from the TMX object groups exactly like `addObjectsToStage` did. Level 5 keeps the original's gimmick: it ignores the map's Key/Door/Health objects and picks one of four mirrored layouts at random.
+
+Rendering is adaptive rather than fixed: scenes are authored against `GAME_WIDTH`/`GAME_HEIGHT` (1920x1080) but the canvas runs in `Phaser.Scale.EXPAND`, which grows that base on whichever axis has spare room to fill the window with no letterbox bars (a wide monitor sees more world horizontally, a 16:10 laptop more vertically) while keeping 1 design px = 1 canvas px, so text stays crisp. Scenes read the live `scale.width`/`scale.height` and re-layout on `RESIZE`. Menus go through `createMenuFrame` (`src/ui/layout.ts`), which centres the camera on the authored content and zooms it to fill the window, capped by `uiScale(scene)` -- a viewport-height-driven factor that makes text and buttons larger than the old fixed layout. `WORLD_ZOOM` (`GAME_HEIGHT / WORLD_VIEW_HEIGHT`, ~1.69) frames levels like the original; `HudScene` zooms by `WORLD_ZOOM * uiScale` so the HUD and touch controls are a little larger than the world. `pixelArt`/`roundPixels` are off to match the original's smooth art and web-font rendering. The HUD rebuilds `hud.coffee`: the 124px gradient bar (drawn as a `fillGradientStyle` ramp, no texture), the doctor's head with a speech bubble, and icon counters chained from the right edge, plus the pause and menu buttons. Input follows the original Quintus bindings (up/X/W jump, space/Z fire) and every screen also supports Enter/Space to confirm, Esc to go back, P to pause and M to mute.
 
 ### Phase 3 — Combat & enemy variety (next)
-Shipped: Zombie Mode (zero lives turns the doctor into a ZombiePlayer — slower,
-single jump, no gun, infects humans on touch, must fall off the map to recover),
-combat juice (hit-stop via `World.timeScale`, camera shake, muzzle flash,
-particle bursts, HUD avatar swap) and four enemy archetypes — walker, runner,
-brute (armoured, 3 hits) and spitter (ranged) — mixed per level in
-`src/levels/levels.ts`.
 
-Still to do: weapon variants (spread, charge, melee) and hit reactions for the
-player, plus boss encounters.
+Shipped: Zombie Mode (zero lives turns the doctor into a ZombiePlayer — slower, single jump, no gun, infects humans on touch, must fall off the map to recover), combat juice (hit-stop via `World.timeScale`, camera shake, muzzle flash, particle bursts, HUD avatar swap) and four enemy archetypes — walker, runner, brute (armoured, 3 hits) and spitter (ranged) — mixed per level in `src/levels/levels.ts`.
+
+Still to do: weapon variants (spread, charge, melee) and hit reactions for the player, plus boss encounters.
 
 ### Phase 4 — Progression & meta
-Level-select upgrades: star scoring, unlocks and the summary/star row are in;
-still to do are the upgrade shop between levels, richer medals, and best-run
-records.
+
+Level-select upgrades: star scoring, unlocks and the summary/star row are in; still to do are the upgrade shop between levels, richer medals, and best-run records.
 
 ### Phase 5 — Remaining levels & content
-All six original levels already load and play. Extend them with new act(s),
-boss encounters, and challenge + endless modes.
+
+All six original levels already load and play. Extend them with new act(s), boss encounters, and challenge + endless modes.
 
 ### Phase 6 — Polish, mobile & ship
-Shipped: on-screen touch controls (a two-way movement pad bottom-left plus jump
-and fire buttons bottom-right, drawn with Graphics, matched to the HUD camera's
-zoom), multi-touch pointers (`input.activePointers`), a portrait rotate-to-
-landscape gate that sleeps the loop and pauses audio, safe-area insets on the
-canvas container, and a `netlify.toml` (pnpm build -> `dist`, immutable caching
-for hashed assets). Web Audio unlock is handled by Phaser on the first gesture,
-verified working. Touch controls appear only when `(pointer: coarse)` matches, or
-with a `?touch=1` override for QA.
 
-Installable as a PWA: `public/manifest.webmanifest` (`display: fullscreen`,
-`orientation: landscape`, maskable icon) plus the original game's icon art under
-`public/icons/`, iOS `apple-*` meta tags and an `apple-touch-icon`, and a
-production-only `public/sw.js` that enables the install prompt and caches assets
-for offline repeat play. Registering the SW in `src/main.ts` is gated on
-`import.meta.env.PROD` so Vite/HMR is never intercepted.
+Shipped: on-screen touch controls (a two-way movement pad bottom-left plus jump and fire buttons bottom-right, drawn with Graphics, matched to the HUD camera's zoom), multi-touch pointers (`input.activePointers`), a portrait rotate-to- landscape gate that sleeps the loop and pauses audio, safe-area insets on the canvas container, and a `netlify.toml` (pnpm build -> `dist`, immutable caching for hashed assets). Web Audio unlock is handled by Phaser on the first gesture, verified working. Touch controls appear only when `(pointer: coarse)` matches, or with a `?touch=1` override for QA.
 
-Still to do: a real Safari/iOS device pass, and an actual Netlify deploy (the
-build config is in place). `Scale.EXPAND` fills the window at any aspect ratio
-(no letterbox bars) and `createMenuFrame` / `uiScale` scale the UI up.
+Installable as a PWA: `public/manifest.webmanifest` (`display: fullscreen`, `orientation: landscape`, maskable icon) plus the original game's icon art under `public/icons/`, iOS `apple-*` meta tags and an `apple-touch-icon`, and a production-only `public/sw.js` that enables the install prompt and caches assets for offline repeat play. Registering the SW in `src/main.ts` is gated on `import.meta.env.PROD` so Vite/HMR is never intercepted, and the worker's cache name is versioned from `package.json` so each release replaces the previous cache. The Boogaloo and Jolly Lodger fonts are self-hosted under `public/fonts/` (preloaded, then awaited in `BootScene` before the first frame) rather than loaded from Google Fonts, so they work offline and never flash a fallback face.
+
+Still to do: a real Safari/iOS device pass, and an actual Netlify deploy (the build config is in place). `Scale.EXPAND` fills the window at any aspect ratio (no letterbox bars) and `createMenuFrame` / `uiScale` scale the UI up.
 
 ## Known gotchas
-- The original custom polygon collider (`[-15,-50]..[25,50]`) is approximated
-  with an Arcade body (26x86, offset 12,13). Physics was deliberately retuned
-  for the remaster (gravity 1400, jump -820, double jump) while keeping the
-  original's reach: level 1 needs ~3.2-tile jumps and 4-tile gaps.
-- Zombie ledge detection used `Q.stage().locate(...)`; now
-  `TilemapLayer.getTileAtWorldXY` at the feet.
-- Zombie "line of sight" is the original 350px horizontal band, with a 3s
-  memory and a 10s alert cooldown, in `src/entities/Zombie.ts`.
-- Phaser cannot load `.tmx`, and its Tiled-JSON loader would mean resaving the
-  levels; `src/levels/tmx.ts` parses the XML at runtime instead. Tileset
-  `firstgid=1` / gid 0 maps to index -1.
-- `Phaser.Input.Keyboard.JustDown` is cleared by the keyup handler, so a tap
-  between two frames is dropped. Gameplay presses are queued from `keydown-*`
-  events in `GameScene.bindInput()`.
-- Levels 1-2 hardcoded their entities in the original scene scripts, so they
-  keep explicit spawn tables; levels 3-6 read the TMX object groups. Level 5's
-  four mirrored key/door/sign layouts are ported; level 3's two-way key/door
-  random is still fixed to one variant.
+
+- The original custom polygon collider (`[-15,-50]..[25,50]`) is approximated with an Arcade body (26x86, offset 12,13). Physics was deliberately retuned for the remaster (gravity 1400, jump -820, double jump) while keeping the original's reach: level 1 needs ~3.2-tile jumps and 4-tile gaps.
+- Zombie ledge detection used `Q.stage().locate(...)`; now `TilemapLayer.getTileAtWorldXY` at the feet.
+- Zombie "line of sight" is the original 350px horizontal band, with a 3s memory and a 10s alert cooldown, in `src/entities/Zombie.ts`.
+- Phaser cannot load `.tmx`, and its Tiled-JSON loader would mean resaving the levels; `src/levels/tmx.ts` parses the XML at runtime instead. Tileset `firstgid=1` / gid 0 maps to index -1.
+- `Phaser.Input.Keyboard.JustDown` is cleared by the keyup handler, so a tap between two frames is dropped. Gameplay presses are queued from `keydown-*` events in `GameScene.bindInput()`.
+- Levels 1-2 hardcoded their entities in the original scene scripts, so they keep explicit spawn tables; levels 3-6 read the TMX object groups. Level 5's four mirrored key/door/sign layouts are ported; level 3's two-way key/door random is still fixed to one variant.
 - Original `Background` sprite read an undefined asset — dead code, dropped.
-- `localStorage` keys reused for save compatibility: `zombieGame:availableLevel`,
-  `zombieGame:levelProgress`.
+- `localStorage` keys reused for save compatibility: `zombieGame:availableLevel`, `zombieGame:levelProgress`.
 
 ## Current scaffold
 
@@ -186,9 +112,13 @@ src/
     legacyAtlas.ts   Legacy atlas JSON -> Phaser frames ("<name>:<index>")
     animations.ts    Animations ported from the original definitions
   ui/
-    buttons.ts       Shared text button factory
+    theme.ts         Shared UI tokens: type scale, frame rows, button geometry
+    splash.ts        Heading shared by the loading and title screens
+    buttons.ts       Text button factory + shared hover/press feedback
     keyboard.ts      Shared Enter/Space, Esc, P, M bindings for every screen
+    navigation.ts    History API integration for browser Back/Forward
     layout.ts        `createMenuFrame` + `uiScale` + backdrop helpers
+    fonts.ts         Awaits the self-hosted web fonts before the first scene
     audioButton.ts   Mute button and persistence (`zombieGame:muted`)
     touchInput.ts    Shared touch-control state + device detection
     touchControls.ts On-screen movement pad + jump/fire buttons (HudScene)
@@ -203,7 +133,7 @@ src/
     ControlsScene.ts How-to-play
     LevelSelectScene.ts  Level grid with lock/stars
     GameScene.ts     Full level pipeline: map, entities, combat, win/lose
-    HudScene.ts      Overlay: counters + doctor's info line (shared camera zoom)
+    HudScene.ts      Overlay: counters, persistent doctor hints, pause/back/mute
     LevelSummaryScene.ts / GameOverScene.ts / EndScene.ts
   entities/
     Player.ts        Movement, double jump, gun, invincibility, zombie mode
