@@ -34,10 +34,12 @@ const config: Phaser.Types.Core.GameConfig = {
   title: "Heal'em All",
   version: '0.1.0',
   scale: {
-    // The engine owns scaling: scenes are authored in the fixed 640x320 design
-    // space above and the canvas is letterboxed into the window. Resizing the
-    // browser never re-runs scene layout code.
-    mode: Phaser.Scale.FIT,
+    // EXPAND fills the parent by growing the design space on whichever axis has
+    // spare room, so there are never letterbox bars: a wide monitor sees more
+    // world horizontally, a tall one more vertically. The canvas stays 1 design
+    // pixel per canvas pixel (unlike FIT's downscale), so text stays sharp.
+    // Scenes read the live `scale.width/height` and re-layout on RESIZE.
+    mode: Phaser.Scale.EXPAND,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
   physics: {

@@ -4,6 +4,7 @@ import { bus, Events, GameState } from '../state/GameState'
 import { bindScreenKeys } from '../ui/keyboard'
 import { applyMutedState, toggleMute } from '../ui/audioButton'
 import { TouchControls } from '../ui/touchControls'
+import { uiScale } from '../ui/layout'
 
 /**
  * HUD rebuilt to the original `hud.coffee` layout: a gradient bar, the doctor's
@@ -11,17 +12,11 @@ import { TouchControls } from '../ui/touchControls'
  * right edge. The counter sprites already contain the "x", so only the number is
  * drawn, exactly like the original.
  *
- * The constants below keep the original's pixel sizes, and the camera carries the
- * same zoom as the world so the HUD and the level stay in proportion.
+ * The camera carries `WORLD_ZOOM` times `uiScale`, so the HUD is drawn a little
+ * larger than the level and the controls and text stay legible on big screens.
+ * The world camera keeps the base `WORLD_ZOOM`; the HUD no longer matches it
+ * exactly, which is intentional now that UI is scaled up.
  */
-
-/**
- * The HUD is drawn at the same scale as the level. The original drew both at
- * 1:1 in the live window; the world camera now zooms to reframe the level, so
- * the HUD carries the identical zoom to keep the doctor's head, the counters
- * and the world art in the same proportion as the original.
- */
-const HUD_ZOOM = WORLD_ZOOM
 
 /** Vertical fade height, from the original's 124px `gradient-top.png` bar. */
 const BAR_HEIGHT = 124
@@ -37,14 +32,6 @@ const NUMBER_SIZE = 34
 /** Gaps between counter groups, straight from `hud.coffee`. */
 const GROUP_GAP = 20
 const KEY_GAP = 34
-
-/**
- * Visible width of the HUD's own coordinate space. The camera is zoomed, so the
- * design width covers fewer HUD pixels; the counters chain from that edge.
- */
-function viewWidth(scene: Phaser.Scene): number {
-  return scene.scale.width / HUD_ZOOM
-}
 
 interface Counter {
   container: Phaser.GameObjects.Container
@@ -77,6 +64,12 @@ export class HudScene extends Phaser.Scene {
   private zombies = 0
   private hasKey = false
 
+  /**
+   * HUD camera zoom: the world zoom multiplied by the responsive UI scale.
+   * Recomputed on resize (see `layout`).
+   */
+  private zoom = WORLD_ZOOM
+
   constructor() {
     super('Hud')
   }
@@ -99,11 +92,11 @@ export class HudScene extends Phaser.Scene {
     // no matter what the zoom is.
     const camera = this.cameras.main
     camera.setOrigin(0, 0)
-    camera.setZoom(HUD_ZOOM)
+    this.applyZoom()
     camera.setScroll(0, 0)
 
     this.gradient = this.add.graphics()
-    this.drawGradient(viewWidth(this))
+    this.drawGradient(this.viewWidth())
 
     this.avatar = this.add.image(AVATAR_WIDTH / 2, 35.5, 'hud', 'hud_player:0')
 
@@ -127,7 +120,7 @@ export class HudScene extends Phaser.Scene {
 
     this.refresh()
     this.layout()
-    this.touchControls = new TouchControls(this)
+    this.touchControls = new TouchControls(this, this.zoom)
 
     bus.on(Events.livesChanged, this.onLives, this)
     bus.on(Events.bulletsChanged, this.onBullets, this)
@@ -226,8 +219,27 @@ export class HudScene extends Phaser.Scene {
     this.gradient.fillRect(0, 0, width, BAR_HEIGHT)
   }
 
+  /**
+   * Sets the HUD camera zoom to the world zoom enlarged by the responsive UI
+   * scale. The camera is anchored top-left (`origin 0,0`), so the HUD grows from
+   * that corner and the counters chain from the live right edge.
+   */
+  private applyZoom(): void {
+    this.zoom = WORLD_ZOOM * uiScale(this)
+    this.cameras.main.setZoom(this.zoom)
+  }
+
+  /**
+   * Visible width of the HUD's own coordinate space. The camera is zoomed, so the
+   * design width covers fewer HUD pixels; the counters chain from that edge.
+   */
+  private viewWidth(): number {
+    return this.scale.width / this.zoom
+  }
+
   private layout(): void {
-    const width = viewWidth(this)
+    this.applyZoom()
+    const width = this.viewWidth()
 
     this.drawGradient(width)
     this.avatar.setPosition(AVATAR_WIDTH / 2, 35.5)
@@ -261,7 +273,7 @@ export class HudScene extends Phaser.Scene {
 
     this.layoutBubble()
     this.layoutPauseOverlay()
-    this.touchControls?.layout()
+    this.touchControls?.layout(this.zoom)
   }
   private layoutBubble(): void {
     const text = this.bubbleText.text
@@ -355,8 +367,8 @@ export class HudScene extends Phaser.Scene {
 
     // Positioned in the HUD's own (zoomed) coordinate space, so it centres on
     // screen rather than on the design space the camera no longer maps 1:1.
-    const width = viewWidth(this)
-    const height = this.scale.height / HUD_ZOOM
+    const width = this.viewWidth()
+    const height = this.scale.height / this.zoom
     const shade = this.add.rectangle(0, 0, width, height, 0x000000, 0.5).setOrigin(0)
     const label = this.add
       .text(width / 2, height / 2, 'Paused', {
@@ -371,8 +383,8 @@ export class HudScene extends Phaser.Scene {
 
   private layoutPauseOverlay(): void {
     if (!this.pauseOverlay) return
-    const width = viewWidth(this)
-    const height = this.scale.height / HUD_ZOOM
+    const width = this.viewWidth()
+    const height = this.scale.height / this.zoom
     const [shade, label] = this.pauseOverlay.list as [
       Phaser.GameObjects.Rectangle,
       Phaser.GameObjects.Text,

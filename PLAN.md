@@ -59,7 +59,7 @@ remaster keeps the identity but raises the action ceiling.
 | Build/dev | Vite 8 |
 | Physics | Arcade Physics (platformer + tile collisions) |
 | Levels | Tiled maps; the original `.tmx` is parsed at runtime (no resave) |
-| Rendering | Fixed 1920x1080 design space + `Scale.FIT`; world/HUD share one camera zoom |
+| Rendering | Adaptive `Scale.EXPAND` from a 1920x1080 authoring base; fixed world zoom, `uiScale`-grown HUD |
 | Audio | Phaser Web Audio Sound Manager |
 | State | `src/state/store.ts` (pure) + `src/state/GameState.ts` (Phaser bus) |
 | Art atlas | Keep hand-made sheets; adapter converts legacy JSON → Phaser atlas |
@@ -90,22 +90,24 @@ ported from the original scene scripts (they hardcoded their entities), levels
 Level 5 keeps the original's gimmick: it ignores the map's Key/Door/Health
 objects and picks one of four mirrored layouts at random.
 
-Rendering uses a fixed design space instead of the original's live-window canvas.
-The original sized its canvas to the window and drew everything 1:1 at device
-pixel ratio 1; reproducing that with `RESIZE` meant a 640x320 frame stretched onto
-a 1080p display, which blurred the web-font text. Scenes are therefore authored
-against `GAME_WIDTH`/`GAME_HEIGHT` (1920x1080) and `Scale.FIT` + `CENTER_BOTH`
-letterboxes that into the window, so the canvas really renders at 1920x1080 and is
-CSS-scaled. Menus lay out once in `create()` with no resize listener and no
-percentage math. `WORLD_VIEW_HEIGHT` (640) is a logical view height: `GameScene`
-zooms by `GAME_HEIGHT / WORLD_VIEW_HEIGHT` to frame a level like the original and
-`HudScene` reuses the same zoom, anchored top-left, so the two stay in proportion.
-`pixelArt`/`roundPixels` are off to match the original's smooth art and web-font
-rendering. The HUD rebuilds `hud.coffee`: the 124px gradient bar (drawn as a
-`fillGradientStyle` ramp, no texture), the doctor's head with a speech bubble, and
-icon counters chained from the right edge, plus the pause and menu buttons. Input
-follows the original Quintus bindings (up/X/W jump, space/Z fire) and every screen
-also supports Enter/Space to confirm, Esc to go back, P to pause and M to mute.
+Rendering is adaptive rather than fixed: scenes are authored against
+`GAME_WIDTH`/`GAME_HEIGHT` (1920x1080) but the canvas runs in `Phaser.Scale.EXPAND`,
+which grows that base on whichever axis has spare room to fill the window with no
+letterbox bars (a wide monitor sees more world horizontally, a 16:10 laptop more
+vertically) while keeping 1 design px = 1 canvas px, so text stays crisp. Scenes
+read the live `scale.width`/`scale.height` and re-layout on `RESIZE`. Menus go
+through `createMenuFrame` (`src/ui/layout.ts`), which centres the camera on the
+authored content and zooms it to fill the window, capped by `uiScale(scene)` -- a
+viewport-height-driven factor that makes text and buttons larger than the old fixed
+layout. `WORLD_ZOOM` (`GAME_HEIGHT / WORLD_VIEW_HEIGHT`, ~1.69) frames levels like
+the original; `HudScene` zooms by `WORLD_ZOOM * uiScale` so the HUD and touch
+controls are a little larger than the world. `pixelArt`/`roundPixels` are off to
+match the original's smooth art and web-font rendering. The HUD rebuilds
+`hud.coffee`: the 124px gradient bar (drawn as a `fillGradientStyle` ramp, no
+texture), the doctor's head with a speech bubble, and icon counters chained from
+the right edge, plus the pause and menu buttons. Input follows the original Quintus
+bindings (up/X/W jump, space/Z fire) and every screen also supports Enter/Space to
+confirm, Esc to go back, P to pause and M to mute.
 
 ### Phase 3 — Combat & enemy variety (next)
 Shipped: Zombie Mode (zero lives turns the doctor into a ZombiePlayer — slower,
@@ -138,8 +140,8 @@ verified working. Touch controls appear only when `(pointer: coarse)` matches, o
 with a `?touch=1` override for QA.
 
 Still to do: a real Safari/iOS device pass, and an actual Netlify deploy (the
-build config is in place). Note the fixed design space already handles window
-scaling via `Scale.FIT`; non-2:1 windows letterbox rather than reflow.
+build config is in place). `Scale.EXPAND` fills the window at any aspect ratio
+(no letterbox bars) and `createMenuFrame` / `uiScale` scale the UI up.
 
 ## Known gotchas
 - The original custom polygon collider (`[-15,-50]..[25,50]`) is approximated
@@ -179,7 +181,7 @@ src/
   ui/
     buttons.ts       Shared text button factory
     keyboard.ts      Shared Enter/Space, Esc, P, M bindings for every screen
-    layout.ts        Backdrop + screen-size helpers for menu scenes
+    layout.ts        `createMenuFrame` + `uiScale` + backdrop helpers
     audioButton.ts   Mute button and persistence (`zombieGame:muted`)
     touchInput.ts    Shared touch-control state + device detection
     touchControls.ts On-screen movement pad + jump/fire buttons (HudScene)

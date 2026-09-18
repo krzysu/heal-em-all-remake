@@ -3,19 +3,16 @@
  */
 
 /**
- * Design resolution. Every scene is authored against this fixed 1920x1080 frame
- * and the engine scales the canvas up or down with `Phaser.Scale.FIT`, so no
- * scene code does percentage math or listens for resize.
+ * Authoring resolution. Every scene is authored against this 1920x1080 frame,
+ * but the game runs in `Scale.EXPAND`: the canvas grows this base on whichever
+ * axis has spare room to fill the window, so there are no letterbox bars on
+ * 16:10 laptops, ultrawides or phones. The live size is `scale.width/height`.
  *
- * Size matters for sharpness: the canvas is rendered at exactly this resolution
- * and then CSS-scaled into the window. A small frame like 640x320 renders only
- * 640x320 real pixels and gets stretched ~3x on a 1080p display, which blurs
- * text badly. 1920x1080 renders 1:1 on the common desktop case, so fonts are
- * crisp there and only upscale on larger displays.
- *
- * The art itself is 1x only (a character frame is 50x100, the HUD bar 55x124),
- * so it is displayed at roughly its native pixels inside this frame, matching
- * how the original drew the same assets at 1:1 against the live window.
+ * Size matters for sharpness: with EXPAND the canvas renders 1:1 (1 design px =
+ * 1 canvas px) instead of FIT's downscale, so text stays crisp. The art is 1x
+ * (a character frame is 50x100, the HUD bar 55x124), so it displays at roughly
+ * its native pixels, matching how the original drew the same assets against the
+ * live window.
  */
 export const GAME_WIDTH = 1920
 export const GAME_HEIGHT = 1080
@@ -73,9 +70,7 @@ export const ASSETS = {
     others: 'images/others.png',
     bullet: 'images/bullet.png',
     mapTiles: 'images/map_tiles.png',
-    /** Blurred backdrop inside a level, from the original level tilesets. */
-    background: 'images/bg-blured.jpg',
-    /** Crisp graveyard art the original used as the page background. */
+    /** Crisp graveyard art used as the backdrop for menus and levels. */
     bg: 'images/bg.gif',
   },
   /** Legacy hand-authored frame atlases (see assets/legacyAtlas.ts). */

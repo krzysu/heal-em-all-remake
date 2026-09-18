@@ -2,7 +2,7 @@ import Phaser from 'phaser'
 import { ASSETS, ASSET_BASE, COLORS, FONTS, TILE_SIZE, TOTAL_LEVELS } from '../config'
 import { registerLegacyAtlas } from '../assets/legacyAtlas'
 import { registerAnimations } from '../assets/animations'
-import { screenSize } from '../ui/layout'
+import { screenSize, uiScale } from '../ui/layout'
 
 export class PreloadScene extends Phaser.Scene {
   constructor() {
@@ -29,8 +29,7 @@ export class PreloadScene extends Phaser.Scene {
   private queueAssets(): void {
     const { images, atlases, audio } = ASSETS
 
-    // Backgrounds are stretched as images/tile sprites, never used as frames.
-    this.load.image('background', `${ASSET_BASE}/${images.background}`)
+    // The backdrop is stretched as an image, never used as a frame.
     this.load.image('bg', `${ASSET_BASE}/${images.bg}`)
 
     // The tile sheet is the one sheet we want sliced on load.
@@ -40,7 +39,7 @@ export class PreloadScene extends Phaser.Scene {
     })
 
     for (const [key, path] of Object.entries(images)) {
-      if (key === 'background' || key === 'bg' || key === 'mapTiles') continue
+      if (key === 'bg' || key === 'mapTiles') continue
       this.load.image(key, `${ASSET_BASE}/${path}`)
     }
 
@@ -60,33 +59,34 @@ export class PreloadScene extends Phaser.Scene {
 
   private drawProgress(): void {
     const { width, height } = screenSize(this)
+    const s = uiScale(this)
     const centerX = width / 2
-    const centerY = height / 2 + 36
-    const barWidth = 260
-    const barHeight = 12
+    const centerY = height / 2 + 36 * s
+    const barWidth = 260 * s
+    const barHeight = 12 * s
     const barLeft = centerX - barWidth / 2
     const accent = Phaser.Display.Color.HexStringToColor(COLORS.accent).color
 
     this.add
-      .text(centerX, centerY - 92, "Heal'em All", {
+      .text(centerX, centerY - 92 * s, "Heal'em All", {
         fontFamily: FONTS.title,
-        fontSize: '64px',
+        fontSize: `${64 * s}px`,
         color: COLORS.title,
       })
       .setOrigin(0.5)
 
     this.add
-      .text(centerX, centerY - 46, "There's a cure for zombies", {
+      .text(centerX, centerY - 46 * s, "There's a cure for zombies", {
         fontFamily: FONTS.title,
-        fontSize: '24px',
+        fontSize: `${24 * s}px`,
         color: COLORS.danger,
       })
       .setOrigin(0.5)
 
     const status = this.add
-      .text(centerX, centerY - 20, 'Loading...', {
+      .text(centerX, centerY - 20 * s, 'Loading...', {
         fontFamily: FONTS.body,
-        fontSize: '16px',
+        fontSize: `${16 * s}px`,
         color: COLORS.muted,
       })
       .setOrigin(0.5)
@@ -96,9 +96,9 @@ export class PreloadScene extends Phaser.Scene {
     const draw = (value: number): void => {
       graphics.clear()
       graphics.fillStyle(0x9ca2ae, 0.25)
-      graphics.fillRect(barLeft, centerY + 24, barWidth, barHeight)
+      graphics.fillRect(barLeft, centerY + 24 * s, barWidth, barHeight)
       graphics.fillStyle(accent, 1)
-      graphics.fillRect(barLeft, centerY + 24, barWidth * value, barHeight)
+      graphics.fillRect(barLeft, centerY + 24 * s, barWidth * value, barHeight)
     }
 
     draw(0)

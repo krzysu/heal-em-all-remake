@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { COLORS, FONTS, GAME_HEIGHT, GAME_WIDTH, TOTAL_LEVELS } from '../config'
 import { GameState } from '../state/GameState'
-import { addMenuBackdrop } from '../ui/layout'
+import { createMenuFrame } from '../ui/layout'
 import { createTextButton } from '../ui/buttons'
 import { bindScreenKeys } from '../ui/keyboard'
 import { applyMutedState, toggleMute } from '../ui/audioButton'
@@ -34,20 +34,23 @@ export class LevelSummaryScene extends Phaser.Scene {
     const hasNext = level < TOTAL_LEVELS
 
     applyMutedState(this)
-    addMenuBackdrop(this)
+
+    const { root, fit } = createMenuFrame(this)
 
     const marginX = GAME_WIDTH * MARGIN_X_PCT * 0.01
     const gutterX = GAME_WIDTH * GUTTER_X_PCT * 0.01
     const columnWidth = GAME_WIDTH * COLUMN_PCT * 0.01
     const marginY = GAME_HEIGHT * MARGIN_Y_PCT * 0.01
 
-    this.add
-      .text(GAME_WIDTH / 2, marginY / 2, 'Well done!', {
-        fontFamily: FONTS.title,
-        fontSize: '100px',
-        color: COLORS.title,
-      })
-      .setOrigin(0.5)
+    root.add(
+      this.add
+        .text(GAME_WIDTH / 2, marginY / 2, 'Well done!', {
+          fontFamily: FONTS.title,
+          fontSize: '100px',
+          color: COLORS.title,
+        })
+        .setOrigin(0.5),
+    )
 
     // Only the rows the original had data for are rendered, exactly as its
     // `if stage.options.<metric>` guards did.
@@ -63,24 +66,28 @@ export class LevelSummaryScene extends Phaser.Scene {
     const starsX = summaryX + gutterX + columnWidth
 
     entries.forEach((entry, index) => {
-      this.add
-        .text(summaryX, GAME_HEIGHT / 2 + (index - 1.5) * LINE_HEIGHT, entry, {
-          fontFamily: FONTS.body,
-          fontSize: '36px',
-          color: COLORS.accent,
-        })
-        .setOrigin(0.5)
+      root.add(
+        this.add
+          .text(summaryX, GAME_HEIGHT / 2 + (index - 1.5) * LINE_HEIGHT, entry, {
+            fontFamily: FONTS.body,
+            fontSize: '36px',
+            color: COLORS.accent,
+          })
+          .setOrigin(0.5),
+      )
     })
 
     // `x = -80 - 20` in the original: first skull one width plus a 20px gap left
     // of the column centre, then stepped by width + 20.
     const earned = GameState.starsFor(level)
     for (let index = 0; index < 3; index++) {
-      this.add.image(
-        starsX + (SKULL_WIDTH + 20) * (index - 1.5),
-        GAME_HEIGHT / 2 - LINE_HEIGHT / 2,
-        'others',
-        index < earned ? 'ui_level_score:0' : 'ui_level_score_empty:0',
+      root.add(
+        this.add.image(
+          starsX + (SKULL_WIDTH + 20) * (index - 1.5),
+          GAME_HEIGHT / 2 - LINE_HEIGHT / 2,
+          'others',
+          index < earned ? 'ui_level_score:0' : 'ui_level_score_empty:0',
+        ),
       )
     }
 
@@ -88,24 +95,30 @@ export class LevelSummaryScene extends Phaser.Scene {
     const buttonY = GAME_HEIGHT - marginY
     const gap = 40
 
-    createTextButton(this, GAME_WIDTH / 2 - buttonWidth / 2 - gap, buttonY, {
-      label: 'All levels',
-      width: buttonWidth,
-      height: 70,
-      fill: COLORS.title,
-      fontSize: 58,
-      onClick: () => this.scene.start('LevelSelect'),
-    })
+    root.add(
+      createTextButton(this, GAME_WIDTH / 2 - buttonWidth / 2 - gap, buttonY, {
+        label: 'All levels',
+        width: buttonWidth,
+        height: 70,
+        fill: COLORS.title,
+        fontSize: 58,
+        onClick: () => this.scene.start('LevelSelect'),
+      }),
+    )
 
-    createTextButton(this, GAME_WIDTH / 2 + buttonWidth / 2 + gap, buttonY, {
-      label: hasNext ? 'Play next' : 'The End',
-      width: buttonWidth,
-      height: 70,
-      fill: COLORS.accent,
-      fontSize: 58,
-      onClick: () =>
-        hasNext ? this.scene.start('Game', { level: level + 1 }) : this.scene.start('End'),
-    })
+    root.add(
+      createTextButton(this, GAME_WIDTH / 2 + buttonWidth / 2 + gap, buttonY, {
+        label: hasNext ? 'Play next' : 'The End',
+        width: buttonWidth,
+        height: 70,
+        fill: COLORS.accent,
+        fontSize: 58,
+        onClick: () =>
+          hasNext ? this.scene.start('Game', { level: level + 1 }) : this.scene.start('End'),
+      }),
+    )
+
+    fit()
 
     // Enter / Space mirrors "Play next", Escape returns to the level list.
     bindScreenKeys(this, {

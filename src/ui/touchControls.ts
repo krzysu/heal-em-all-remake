@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { FONTS, WORLD_ZOOM } from '../config'
+import { FONTS } from '../config'
 import { isTouchDevice, resetTouchInput, touchInput } from './touchInput'
 
 /**
@@ -8,18 +8,18 @@ import { isTouchDevice, resetTouchInput, touchInput } from './touchInput'
  * the right hand, fire above it, movement on the left thumb).
  *
  * It lives in `HudScene` because that camera is anchored at (0, 0) with a known
- * zoom, so hit-testing is just `pointer / WORLD_ZOOM`. Pointers are matched to
+ * zoom, so hit-testing is just `pointer / zoom`. Pointers are matched to
  * zones here and the result is written to the shared `touchInput` singleton,
  * which `GameScene` polls each frame.
  */
 
 type ZoneKind = 'left' | 'right' | 'jump' | 'fire'
 
-/** Movement pad, in the HUD's zoomed view space. */
-const PAD = { x: 24, y: 430, width: 240, height: 160 }
-const PAD_CENTER_X = PAD.x + PAD.width / 2
-const PAD_CENTER_Y = PAD.y + PAD.height / 2
-const ARROW_X = PAD.width * 0.28
+/** Movement pad, in the HUD's zoomed view space. Anchored to the bottom edge. */
+const PAD_WIDTH = 240
+const PAD_HEIGHT = 160
+const PAD_MARGIN = 28
+const ARROW_INSET = PAD_WIDTH * 0.28
 
 const BUTTON_RADIUS = 68
 
@@ -50,9 +50,12 @@ export class TouchControls {
   /** Whether this device gets touch controls at all. */
   private readonly supported = isTouchDevice()
   private shown = false
+  /** The HUD camera zoom, so pointer positions map back to view coordinates. */
+  private zoom: number
 
-  constructor(scene: Phaser.Scene) {
+  constructor(scene: Phaser.Scene, zoom: number) {
     this.scene = scene
+    this.zoom = zoom
 
     this.pad = scene.add.graphics()
     this.jump = scene.add.graphics()
@@ -84,7 +87,7 @@ export class TouchControls {
 
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.destroy())
 
-    this.layout()
+    this.layout(this.zoom)
     this.setPaused(false)
   }
 
@@ -103,12 +106,13 @@ export class TouchControls {
     if (!show) resetTouchInput()
   }
 
-  /** Recomputes positions from the current view size. */
-  layout(): void {
-    const width = this.scene.scale.width / WORLD_ZOOM
-    const height = this.scene.scale.height / WORLD_ZOOM
+  /** Recomputes positions from the current view size and camera zoom. */
+  layout(zoom: number): void {
+    this.zoom = zoom
+    const width = this.scene.scale.width / this.zoom
+    const height = this.scene.scale.height / this.zoom
 
-    this.padRect.setTo(PAD.x, PAD.y, PAD.width, PAD.height)
+    this.padRect.setTo(PAD_MARGIN, height - PAD_HEIGHT - PAD_MARGIN, PAD_WIDTH, PAD_HEIGHT)
     this.jumpCenter.set(width - 190, height - 160)
     this.fireCenter.set(width - 80, height - 300)
     this.jumpLabel.setPosition(this.jumpCenter.x, this.jumpCenter.y)
@@ -137,7 +141,7 @@ export class TouchControls {
   private updatePointer(pointer: Phaser.Input.Pointer): void {
     if (!this.shown) return
 
-    const zone = this.zoneAt(pointer.x / WORLD_ZOOM, pointer.y / WORLD_ZOOM)
+    const zone = this.zoneAt(pointer.x / this.zoom, pointer.y / this.zoom)
     if (!zone) {
       if (this.active.delete(pointer.id)) this.sync()
       return
@@ -153,7 +157,7 @@ export class TouchControls {
   }
 
   private zoneAt(x: number, y: number): ZoneKind | null {
-    if (this.padRect.contains(x, y)) return x < PAD_CENTER_X ? 'left' : 'right'
+    if (this.padRect.contains(x, y)) return x < this.padRect.centerX ? 'left' : 'right'
     if (Phaser.Math.Distance.Between(x, y, this.jumpCenter.x, this.jumpCenter.y) <= BUTTON_RADIUS) {
       return 'jump'
     }
@@ -192,36 +196,30 @@ export class TouchControls {
 
   private drawPad(): void {
     const graphics = this.pad
+    const { x, y, width, height, centerY } = this.padRect
     graphics.clear()
 
     graphics.fillStyle(FILL, FILL_ALPHA)
-    graphics.fillRoundedRect(PAD.x, PAD.y, PAD.width, PAD.height, 32)
+    graphics.fillRoundedRect(x, y, width, height, 32)
 
     if (this.pressed.left || this.pressed.right) {
-      const half = PAD.width / 2
-      const x = this.pressed.left ? PAD.x : PAD.x + half
+      const half = width / 2
+      const pressX = this.pressed.left ? x : x + half
       graphics.fillStyle(FILL, FILL_ALPHA_DOWN)
-      graphics.fillRoundedRect(x + 6, PAD.y + 6, half - 12, PAD.height - 12, 26)
+      graphics.fillRoundedRect(pressX + 6, y + 6, half - 12, height - 12, 26)
     }
 
     graphics.fillStyle(FILL, LINE_ALPHA)
-    const leftX = PAD.x + ARROW_X
-    const rightX = PAD.x + PAD.width - ARROW_X
-    graphics.fillTriangle(
-      leftX + 20,
-      PAD_CENTER_Y - 26,
-      leftX + 20,
-      PAD_CENTER_Y + 26,
-      leftX - 18,
-      PAD_CENTER_Y,
-    )
+    const leftX = x + ARROW_INSET
+    const rightX = x + width - ARROW_INSET
+    graphics.fillTriangle(leftX + 20, centerY - 26, leftX + 20, centerY + 26, leftX - 18, centerY)
     graphics.fillTriangle(
       rightX - 20,
-      PAD_CENTER_Y - 26,
+      centerY - 26,
       rightX - 20,
-      PAD_CENTER_Y + 26,
+      centerY + 26,
       rightX + 18,
-      PAD_CENTER_Y,
+      centerY,
     )
   }
 

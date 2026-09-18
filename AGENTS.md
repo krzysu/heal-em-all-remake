@@ -40,27 +40,37 @@ type-aware lint rules — they cannot work here.
 - **Art atlases are hand-authored legacy JSON**, converted at runtime by
   `src/assets/legacyAtlas.ts` into frames named `"<name>:<index>"`. Never edit
   `public/assets` (also excluded from Prettier and oxlint).
-- **Rendering uses a fixed design space.** `GAME_WIDTH`/`GAME_HEIGHT` (1920x1080)
-  is the resolution every scene is authored against, and `Phaser.Scale.FIT` +
-  `CENTER_BOTH` letterbox it into the window. The canvas really renders at
-  1920x1080 and is CSS-scaled, so text is crisp at 1080p instead of being stretched
-  from a small frame. Trade-off: non-2:1 windows get letterbox bars, and resize
-  never re-runs scene layout code.
-- **World and HUD share one zoom, menus use none.** `WORLD_VIEW_HEIGHT` (640, now a
-  private constant) is a logical view height: `GameScene` zooms its camera by
-  `WORLD_ZOOM` (`GAME_HEIGHT / WORLD_VIEW_HEIGHT`, ~1.69) so a level is framed like
-  the original, and `HudScene` applies the *same* zoom so the two stay in proportion.
-  The HUD anchors that zoomed camera to the top-left with `setOrigin(0, 0)` +
-  `setScroll(0, 0)` and measures itself with `viewWidth(scene) = scale.width /
-  WORLD_ZOOM`. Menu scenes keep zoom 1 and lay out once in `create()` against
-  `GAME_WIDTH`/`GAME_HEIGHT`; do **not** add a resize listener or percentage math to
-  them.
+- **Rendering is adaptive (`Scale.EXPAND`), not letterboxed.** `GAME_WIDTH`/
+  `GAME_HEIGHT` (1920x1080) is the *authoring* base; EXPAND grows the canvas on
+  whichever axis has spare room so the window is always filled: a wide monitor
+  sees more world horizontally, a 16:10 laptop more vertically. The canvas stays
+  1 design px = 1 canvas px (unlike FIT's downscale), so text is crisp. Scenes
+  must read the live `scale.width`/`scale.height` and re-layout on
+  `Phaser.Scale.Events.RESIZE`; do not assume 1920x1080.
+- **World zoom is fixed; UI is scaled up.** `WORLD_ZOOM` (`GAME_HEIGHT / 640`,
+  ~1.69) is the level camera zoom. `uiScale(scene)` in `src/ui/layout.ts` grows
+  the UI with the viewport height (clamped), and `HudScene` zooms its camera by
+  `WORLD_ZOOM * uiScale` so counters, text and touch controls are larger than the
+  world. The HUD anchors to the top-left with `setOrigin(0, 0)` + `setScroll(0, 0)`
+  and measures itself with `scale.width / this.zoom`.
+- **Menus go through `createMenuFrame`.** Menu scenes add their objects to the
+  returned container in 1920x1080 coords, call `fit()`, and the helper centres the
+  camera on the content and zooms it to fill the window (capped by `uiScale`),
+  re-fitting on resize. A static menu camera also means the full-bleed backdrop is
+  a normal image at the content centre, not a scroll-factor-0 one.
+- **Gotcha: scroll-factor-0 objects under a zoomed camera.** The screen mapping is
+  `pivot + (pos - pivot) * zoom` with `pivot = (scale.width/2, scale.height/2)`, so
+  a 0-scroll full-view background must be positioned at `scale.width/2`,
+  `scale.height/2` (screen centre) and sized `scale.width/zoom x scale.height/zoom`.
+  Positioning it at `scale.width/(2*zoom)` leaves a bare strip on the right. This
+  is why the level backdrop (`GameScene.syncBackdrop`) and the touch-control
+  hit-testing both use the screen-centre convention.
 - **Controls follow the original Quintus bindings**: up arrow / X (`action`) and
   W jump; space / Z (`fire`) shoot; arrows or A/D move. Space deliberately does
   **not** count as held-jump, or firing would siphon jump height.
 - **Touch is a parallel input, not a replacement.** `src/ui/touchControls.ts`
-  lives in `HudScene` (that camera is origin 0,0 with `WORLD_ZOOM`, so hit-testing
-  is `pointer / WORLD_ZOOM`) and writes to the shared `touchInput` singleton in
+  lives in `HudScene` (that camera is origin 0,0 with the HUD zoom, so hit-testing
+  is `pointer / zoom`) and writes to the shared `touchInput` singleton in
   `src/ui/touchInput.ts`; `GameScene` polls it alongside the keyboard. Controls
   show only for `(pointer: coarse)`, force-testable with `?touch=1`. The touch
   plugin is enabled unconditionally in the game config, and `activePointers` is

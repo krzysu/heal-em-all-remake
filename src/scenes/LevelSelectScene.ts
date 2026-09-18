@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { COLORS, FONTS, GAME_HEIGHT, GAME_WIDTH, TOTAL_LEVELS } from '../config'
 import { GameState } from '../state/GameState'
-import { addMenuBackdrop } from '../ui/layout'
+import { createMenuFrame } from '../ui/layout'
 import { createAudioButton, applyMutedState, toggleMute } from '../ui/audioButton'
 import { bindScreenKeys } from '../ui/keyboard'
 
@@ -10,16 +10,17 @@ import { bindScreenKeys } from '../ui/keyboard'
  *
  * The original placed six tombstone buttons on a 3x2 grid using percentages of
  * the live window (20% margins, 8% column gutters, 14% row gutters, 24% wide
- * columns, 22% tall rows). Here the design space is fixed, so those percentages
- * resolve once to concrete coordinates and the grid is laid out with
- * `Phaser.Actions.GridAlign` instead of a running x/y walk.
+ * columns, 22% tall rows). Here those percentages resolve once against the
+ * 1920x1080 design space and the grid is laid out with `Phaser.Actions.GridAlign`
+ * instead of a running x/y walk. The row gutter is tighter than the original so
+ * `createMenuFrame` can scale the whole screen up without the rows touching.
  */
 const COLUMNS = 3
 const ROWS = 2
 const MARGIN_X_PCT = 20
-const MARGIN_Y_PCT = 20
+const MARGIN_Y_PCT = 12
 const GUTTER_X_PCT = 8
-const GUTTER_Y_PCT = 14
+const GUTTER_Y_PCT = 10
 const COLUMN_PCT = (100 - MARGIN_X_PCT * 2 - (COLUMNS - 1) * GUTTER_X_PCT) / COLUMNS
 const ROW_PCT = 22
 
@@ -34,7 +35,8 @@ export class LevelSelectScene extends Phaser.Scene {
 
   create(): void {
     applyMutedState(this)
-    addMenuBackdrop(this)
+
+    const { root, fit } = createMenuFrame(this)
 
     const marginX = GAME_WIDTH * MARGIN_X_PCT * 0.01
     const gutterX = GAME_WIDTH * GUTTER_X_PCT * 0.01
@@ -44,18 +46,21 @@ export class LevelSelectScene extends Phaser.Scene {
     const rowHeight = GAME_HEIGHT * ROW_PCT * 0.01
     const scale = columnWidth / 171
 
-    this.add
-      .text(GAME_WIDTH / 2, marginY / 2, 'Everything begins here!', {
-        fontFamily: FONTS.title,
-        fontSize: '60px',
-        color: COLORS.title,
-      })
-      .setOrigin(0.5)
+    root.add(
+      this.add
+        .text(GAME_WIDTH / 2, marginY / 2, 'Everything begins here!', {
+          fontFamily: FONTS.title,
+          fontSize: '60px',
+          color: COLORS.title,
+        })
+        .setOrigin(0.5),
+    )
 
     const nodes: Phaser.GameObjects.Container[] = []
     for (let level = 1; level <= TOTAL_LEVELS; level++) {
       nodes.push(this.createLevelNode(level, scale))
     }
+    root.add(nodes)
 
     // GridAlign does the 3x2 walk the original hand-rolled. It anchors each item
     // by `position` (default TOP_LEFT), so CENTER is required to place the
@@ -70,7 +75,9 @@ export class LevelSelectScene extends Phaser.Scene {
       y: marginY,
     })
 
-    createAudioButton(this, GAME_WIDTH - marginX, marginY / 2)
+    root.add(createAudioButton(this, GAME_WIDTH - marginX, marginY / 2))
+
+    fit()
 
     // Enter / Space continues at the furthest unlocked level, so the keyboard
     // never has to click a tombstone.

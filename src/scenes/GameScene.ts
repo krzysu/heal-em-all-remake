@@ -27,7 +27,7 @@ export class GameScene extends Phaser.Scene {
   private tmx!: TmxMap
   private solids!: Phaser.Tilemaps.TilemapLayer
   private mapHeightPx = 0
-  private backdrop!: Phaser.GameObjects.TileSprite
+  private backdrop!: Phaser.GameObjects.Image
   private safePoint!: Point
 
   private player!: Player
@@ -212,14 +212,14 @@ export class GameScene extends Phaser.Scene {
     const zoom = WORLD_ZOOM
     this.cameras.main.setZoom(zoom)
 
-    // Backdrop fills the whole view at every zoom, so it is sized in world units
-    // (the visible world is smaller than the design space once zoomed) and pinned
-    // to the camera centre, which scroll factor 0 keeps on screen.
+    // Full-view graveyard backdrop, matching the menus. It is a scroll-factor-0
+    // image, so under camera zoom it maps 1:1 to screen space: position it at the
+    // screen centre and scale it to cover the zoomed view.
     this.backdrop = this.add
-      .tileSprite(0, 0, this.scale.width / zoom, this.scale.height / zoom, 'background')
+      .image(this.scale.width / 2, this.scale.height / 2, 'bg')
       .setOrigin(0.5)
       .setScrollFactor(0)
-      .setAlpha(0.35)
+      .setAlpha(0.5)
       .setDepth(-100)
     this.syncBackdrop(zoom)
 
@@ -230,10 +230,15 @@ export class GameScene extends Phaser.Scene {
     })
   }
 
-  /** Centres the backdrop on the zoomed camera's visible area. */
+  /** Covers the zoomed view with the graveyard art, centred on screen. */
   private syncBackdrop(zoom: number): void {
-    this.backdrop.setSize(this.scale.width / zoom, this.scale.height / zoom)
-    this.backdrop.setPosition(this.scale.width / (2 * zoom), this.scale.height / (2 * zoom))
+    const source = this.textures.get('bg').getSourceImage()
+    const cover = Math.max(
+      this.scale.width / zoom / source.width,
+      this.scale.height / zoom / source.height,
+    )
+    this.backdrop.setScale(cover)
+    this.backdrop.setPosition(this.scale.width / 2, this.scale.height / 2)
   }
 
   private spawnEntities(spawns: ReturnType<typeof getLevelSpawns>): void {

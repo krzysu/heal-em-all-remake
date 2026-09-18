@@ -1,34 +1,92 @@
-import type Phaser from 'phaser'
-import { GAME_HEIGHT, GAME_WIDTH } from '../config'
+import Phaser from 'phaser'
 
 /**
- * Menu helpers.
+ * Menu layout helpers for the adaptive (`Scale.EXPAND`) canvas.
  *
- * Scenes are authored in the fixed 1920x1080 design space and the ScaleManager
- * (`Phaser.Scale.FIT`) handles fitting that into the window, so there is no
- * percentage math, no resize listener and no camera zoom here. A scene lays its
- * contents out once in `create`.
+ * Menus are still authored around the 1920x1080 design space, but the live
+ * canvas can be wider (wide monitors) or taller (16:10 laptops) than that. A
+ * menu frame collects everything into a container, then zooms and centres the
+ * camera so the content fills as much of the window as it can without clipping,
+ * which also makes the UI larger than the old fixed layout.
  */
+
+/**
+ * How much to enlarge the UI beyond its authoring size. Grows with the viewport
+ * height (taller windows get bigger UI) and is clamped so text never becomes
+ * comically large. `createMenuFrame` lowers it further if content would clip.
+ */
+export function uiScale(scene: Phaser.Scene): number {
+  return Phaser.Math.Clamp(scene.scale.height / 864, 1.15, 1.4)
+}
+
+/**
+ * Render size of the live canvas in design pixels. With `Scale.EXPAND` this is
+ * the authoring size grown to the window aspect, not a fixed 1920x1080.
+ */
+export function screenSize(scene: Phaser.Scene): { width: number; height: number } {
+  return { width: scene.scale.width, height: scene.scale.height }
+}
 
 /**
  * Full-bleed graveyard backdrop. The original set this via CSS
  * `background: url(bg.gif) center center no-repeat; background-size: cover`, so
- * scale it up uniformly until both axes are covered and centre the overflow.
- * A non-uniform `setDisplaySize` would squash the 2048x2048 art out of shape.
+ * scale it up uniformly until it covers the visible area and centre it. The menu
+ * camera is static (it is centred on the content), so this is a normal image
+ * placed at the content centre rather than a scroll-factor-0 one.
  */
-export function addMenuBackdrop(scene: Phaser.Scene): Phaser.GameObjects.Image {
-  const source = scene.textures.get('bg').getSourceImage()
-  const scale = Math.max(GAME_WIDTH / source.width, GAME_HEIGHT / source.height)
-  return scene.add
-    .image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'bg')
-    .setScale(scale)
-    .setDepth(-100)
+function addMenuBackdrop(scene: Phaser.Scene): Phaser.GameObjects.Image {
+  return scene.add.image(0, 0, 'bg').setDepth(-100).setOrigin(0.5)
+}
+
+export interface MenuFrame {
+  /** Add the scene's menu objects to this container in 1920x1080 design coords. */
+  root: Phaser.GameObjects.Container
+  /** Re-fits the camera to the content; call once after adding the content. */
+  fit: () => void
 }
 
 /**
- * Render size of the game canvas in engine pixels. With `Scale.FIT` this is the
- * design space, not the window; scenes use it for full-bleed HUD backgrounds.
+ * Creates the container and backdrop for a menu scene and returns a `fit`
+ * callback. `fit` zooms the camera to make the content fill the window (capped
+ * by `uiScale`) and re-centres it, then keeps the backdrop covering the view.
+ * It is also installed as the scene's RESIZE handler, so call it once after
+ * populating `root`.
  */
-export function screenSize(scene: Phaser.Scene): { width: number; height: number } {
-  return { width: scene.scale.width, height: scene.scale.height }
+export function createMenuFrame(scene: Phaser.Scene): MenuFrame {
+  const root = scene.add.container(0, 0)
+  const backdrop = addMenuBackdrop(scene)
+
+  const fit = (): void => {
+    if (root.length === 0) return
+
+    const width = scene.scale.width
+    const height = scene.scale.height
+    const bounds = root.getBounds()
+    const margin = 48
+
+    // Never exceed the requested UI scale, but shrink if the content would not
+    // fit on this aspect ratio (a very short window, say).
+    const fitScale = Math.min(
+      (width - margin * 2) / Math.max(bounds.width, 1),
+      (height - margin * 2) / Math.max(bounds.height, 1),
+    )
+    const zoom = Phaser.Math.Clamp(Math.min(uiScale(scene), fitScale), 0.6, 1.4)
+
+    const camera = scene.cameras.main
+    camera.setZoom(zoom)
+    camera.centerOn(bounds.centerX, bounds.centerY)
+
+    // The camera looks at the content centre, so a backdrop centred there and
+    // sized to the zoomed view covers the whole window.
+    const source = scene.textures.get('bg').getSourceImage()
+    const cover = Math.max(width / zoom / source.width, height / zoom / source.height)
+    backdrop.setPosition(bounds.centerX, bounds.centerY).setScale(cover)
+  }
+
+  scene.scale.on(Phaser.Scale.Events.RESIZE, fit)
+  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+    scene.scale.off(Phaser.Scale.Events.RESIZE, fit)
+  })
+
+  return { root, fit }
 }
