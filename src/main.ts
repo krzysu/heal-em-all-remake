@@ -67,6 +67,15 @@ export const game = new Phaser.Game(config)
 
 installOrientationGate(game)
 
+// Progressive web app: the service worker unlocks installability (and a cached
+// offline shell). Registered in production only so Vite's dev server and HMR are
+// never intercepted; without it the game still runs.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {})
+  })
+}
+
 // Dev-only handle so the game can be driven from the console / automated smoke
 // checks. Stripped from production builds.
 if (import.meta.env.DEV) {

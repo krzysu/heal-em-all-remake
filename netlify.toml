@@ -11,8 +11,27 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# The entry HTML must always be revalidated so a deploy is picked up.
+# Install icons never change without a rename.
+[[headers]]
+  for = "/icons/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# The entry HTML and the service worker must always be revalidated so a deploy is
+# picked up (the SW is what decides what gets cached).
 [[headers]]
   for = "/index.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+    Service-Worker-Allowed = "/"
+
+# Netlify does not always map .webmanifest, so set it explicitly.
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"

@@ -77,11 +77,16 @@ type-aware lint rules — they cannot work here.
   raised so move + jump + fire can be held together. A portrait gate
   (`src/ui/orientation.ts`) sleeps the loop and pauses audio; it hooks
   `POST_STEP`, not `READY`, because the loop is not running at `READY`.
-- **Every screen has keyboard navigation** via `bindScreenKeys` in
-  `src/ui/keyboard.ts`: Enter/Space confirm, Esc back, and P pause / M mute while
+- **Every screen has keyboard navigation** via `bindScreenKeys` in  `src/ui/keyboard.ts`: Enter/Space confirm, Esc back, and P pause / M mute while
   in a level (P and M are bound on `HudScene`, which owns the pause overlay and the
   audio button). Space is deliberately not a confirm in `GameScene` because it
   fires the gun. Handlers listen on `keydown`, never `JustDown`.
+- **The build is an installable PWA.** `public/manifest.webmanifest` requests
+  `display: fullscreen` and `orientation: landscape`; icons under `public/icons/`
+  are derived from the original game's `app/icons/` art; iOS uses the `apple-*`
+  meta tags plus `apple-touch-icon`. `public/sw.js` is registered from `main.ts`
+  only under `import.meta.env.PROD` (never in dev/HMR) and is listed in
+  `knip.json` because it is referenced by URL, not imported.
 - **The HUD gradient is drawn, not tiled.** The original overlaid a 124px
   `gradient-top.png`; that is a plain vertical alpha ramp, so `HudScene.drawGradient`
   renders it with `Graphics.fillGradientStyle` (dark `#14161a`, alpha 0.71 -> 0).

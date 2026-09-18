@@ -139,6 +139,13 @@ for hashed assets). Web Audio unlock is handled by Phaser on the first gesture,
 verified working. Touch controls appear only when `(pointer: coarse)` matches, or
 with a `?touch=1` override for QA.
 
+Installable as a PWA: `public/manifest.webmanifest` (`display: fullscreen`,
+`orientation: landscape`, maskable icon) plus the original game's icon art under
+`public/icons/`, iOS `apple-*` meta tags and an `apple-touch-icon`, and a
+production-only `public/sw.js` that enables the install prompt and caches assets
+for offline repeat play. Registering the SW in `src/main.ts` is gated on
+`import.meta.env.PROD` so Vite/HMR is never intercepted.
+
 Still to do: a real Safari/iOS device pass, and an actual Netlify deploy (the
 build config is in place). `Scale.EXPAND` fills the window at any aspect ratio
 (no letterbox bars) and `createMenuFrame` / `uiScale` scale the UI up.
