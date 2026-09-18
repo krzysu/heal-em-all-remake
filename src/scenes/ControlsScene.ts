@@ -1,21 +1,25 @@
 import Phaser from 'phaser'
-import { COLORS, FONTS, GAME_HEIGHT, GAME_WIDTH } from '../config'
+import { COLORS, FONTS, GAME_WIDTH } from '../config'
 import { createMenuFrame } from '../ui/layout'
 import { createTextButton } from '../ui/buttons'
+import { navigate } from '../ui/navigation'
 import { bindScreenKeys } from '../ui/keyboard'
 import { applyMutedState, toggleMute } from '../ui/audioButton'
+import { BUTTON, FRAME, TYPE } from '../ui/theme'
 
 /**
  * Port of `controls.coffee` — the tutorial screen the remaster was missing
- * entirely. Three columns laid out with the original's percentages: 20% side
- * margins, 8% gutters and 24% wide columns, with the title at a quarter-height
- * margin.
+ * entirely. Three columns between the shared title and action rows, so the art
+ * can be large enough to read instead of squeezed into the original's narrow
+ * 24% columns.
  */
-const MARGIN_X_PCT = 20
-const GUTTER_X_PCT = 8
+const MARGIN_X_PCT = 14
+const GUTTER_X_PCT = 6
 const COLUMNS = 3
 const COLUMN_PCT = (100 - MARGIN_X_PCT * 2 - (COLUMNS - 1) * GUTTER_X_PCT) / COLUMNS
-const MARGIN_Y_PCT = 25
+/** Art is scaled up to fit this box (never beyond) and stays aspect-correct. */
+const ART_MAX_HEIGHT = 200
+const ART_WIDTH_FILL = 0.95
 
 interface Step {
   heading: string
@@ -42,13 +46,12 @@ export class ControlsScene extends Phaser.Scene {
     const marginX = GAME_WIDTH * MARGIN_X_PCT * 0.01
     const gutterX = GAME_WIDTH * GUTTER_X_PCT * 0.01
     const columnWidth = GAME_WIDTH * COLUMN_PCT * 0.01
-    const marginY = GAME_HEIGHT * MARGIN_Y_PCT * 0.01
 
     root.add(
       this.add
-        .text(GAME_WIDTH / 2, marginY / 2, "How to heal'em in three steps", {
+        .text(GAME_WIDTH / 2, FRAME.titleY, "How to heal'em in three steps", {
           fontFamily: FONTS.title,
-          fontSize: '60px',
+          fontSize: `${TYPE.title}px`,
           color: COLORS.title,
         })
         .setOrigin(0.5),
@@ -57,45 +60,46 @@ export class ControlsScene extends Phaser.Scene {
     STEPS.forEach((step, index) => {
       const x = marginX + columnWidth / 2 + index * (columnWidth + gutterX)
 
+      const art = this.add.image(x, FRAME.contentY + 110, 'others', step.frame)
+      art.setScale(
+        Math.min((columnWidth * ART_WIDTH_FILL) / art.width, ART_MAX_HEIGHT / art.height),
+      )
+
       root.add([
         this.add
-          .text(x, GAME_HEIGHT / 2 - 140, step.heading, {
+          .text(x, FRAME.contentY - 110, step.heading, {
             fontFamily: FONTS.body,
-            fontSize: '26px',
+            fontSize: `${TYPE.caption}px`,
             color: COLORS.danger,
           })
           .setOrigin(0.5),
         this.add
-          .text(x, GAME_HEIGHT / 2 - 100, step.caption, {
+          .text(x, FRAME.contentY - 55, step.caption, {
             fontFamily: FONTS.body,
-            fontSize: '30px',
+            fontSize: `${TYPE.body}px`,
             color: COLORS.muted,
             align: 'center',
             wordWrap: { width: columnWidth },
           })
           .setOrigin(0.5),
-        this.add
-          .image(x, GAME_HEIGHT / 2 + 30, 'others', step.frame)
-          .setScale(Math.min(1, (columnWidth * 1.1) / 200)),
+        art,
       ])
     })
 
     root.add(
-      createTextButton(this, GAME_WIDTH / 2, GAME_HEIGHT - marginY, {
+      createTextButton(this, GAME_WIDTH / 2, FRAME.actionY, {
         label: 'Give me some zombies',
-        width: GAME_WIDTH / 2,
-        height: 70,
+        width: BUTTON.primaryWidth,
         fill: COLORS.accent,
-        fontSize: 58,
-        onClick: () => this.scene.start('Game', { level: 1 }),
+        onClick: () => navigate(this, 'Game', { level: 1 }),
       }),
     )
 
     fit()
 
     bindScreenKeys(this, {
-      confirm: () => this.scene.start('Game', { level: 1 }),
-      back: () => this.scene.start('LevelSelect'),
+      confirm: () => navigate(this, 'Game', { level: 1 }),
+      back: () => navigate(this, 'LevelSelect'),
       mute: () => toggleMute(this),
     })
   }

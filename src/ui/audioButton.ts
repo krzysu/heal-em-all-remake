@@ -1,5 +1,6 @@
 import type Phaser from 'phaser'
 import { GAME_HEIGHT } from '../config'
+import { addButtonFeedback } from './buttons'
 
 /**
  * Port of `audio_button.coffee`. The original toggled the whole game's mute
@@ -30,7 +31,12 @@ function setMuted(muted: boolean): void {
 }
 
 /** The button reads too small at 1:1 in the 1920x1080 design space. */
-const SCALE = (GAME_HEIGHT / 320) * 0.55
+const MENU_SCALE = (GAME_HEIGHT / 320) * 0.55
+
+export interface AudioButtonOptions {
+  /** Overrides the menu scale; the HUD draws the icon at native size. */
+  scale?: number
+}
 
 /** Applies the saved mute state, so a screen can sync it before drawing. */
 export function applyMutedState(scene: Phaser.Scene): void {
@@ -49,16 +55,17 @@ export function createAudioButton(
   scene: Phaser.Scene,
   x: number,
   y: number,
+  options: AudioButtonOptions = {},
 ): Phaser.GameObjects.Image {
   applyMutedState(scene)
 
   const image = scene.add
     .image(x, y, 'hud', frame(scene.sound.mute))
-    .setScale(SCALE)
+    .setScale(options.scale ?? MENU_SCALE)
     .setInteractive({ useHandCursor: true })
 
-  image.on('pointerup', () => {
-    image.setFrame(frame(toggleMute(scene)))
+  addButtonFeedback(scene, image, {
+    onClick: () => image.setFrame(frame(toggleMute(scene))),
   })
 
   return image

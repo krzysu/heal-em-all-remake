@@ -1,8 +1,11 @@
 import Phaser from 'phaser'
-import { ASSETS, ASSET_BASE, COLORS, FONTS, TILE_SIZE, TOTAL_LEVELS } from '../config'
+import { ASSETS, ASSET_BASE, COLORS, FONTS, GAME_WIDTH, TILE_SIZE, TOTAL_LEVELS } from '../config'
 import { registerLegacyAtlas } from '../assets/legacyAtlas'
 import { registerAnimations } from '../assets/animations'
-import { screenSize, uiScale } from '../ui/layout'
+import { createMenuFrame } from '../ui/layout'
+import { addSplashHeading, SPLASH } from '../ui/splash'
+import { navigate } from '../ui/navigation'
+import { BUTTON, TYPE } from '../ui/theme'
 
 export class PreloadScene extends Phaser.Scene {
   constructor() {
@@ -23,7 +26,7 @@ export class PreloadScene extends Phaser.Scene {
 
     registerAnimations(this)
 
-    this.scene.start('Start')
+    navigate(this, 'Start')
   }
 
   private queueAssets(): void {
@@ -57,54 +60,46 @@ export class PreloadScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Draws the same heading as the title screen (via `ui/splash.ts`) and a
+   * button-shaped progress bar in the Continue button's slot, so the screen does
+   * not jump in size or placement when loading hands off to `StartScene`.
+   * Rendered before `bg` exists, so the frame has no backdrop.
+   */
   private drawProgress(): void {
-    const { width, height } = screenSize(this)
-    const s = uiScale(this)
-    const centerX = width / 2
-    const centerY = height / 2 + 36 * s
-    const barWidth = 260 * s
-    const barHeight = 12 * s
-    const barLeft = centerX - barWidth / 2
+    const { root, fit } = createMenuFrame(this, { backdrop: false })
+    addSplashHeading(this, root)
+
     const accent = Phaser.Display.Color.HexStringToColor(COLORS.accent).color
-
-    this.add
-      .text(centerX, centerY - 92 * s, "Heal'em All", {
-        fontFamily: FONTS.title,
-        fontSize: `${64 * s}px`,
-        color: COLORS.title,
-      })
-      .setOrigin(0.5)
-
-    this.add
-      .text(centerX, centerY - 46 * s, "There's a cure for zombies", {
-        fontFamily: FONTS.title,
-        fontSize: `${24 * s}px`,
-        color: COLORS.danger,
-      })
-      .setOrigin(0.5)
-
+    const track = this.add.graphics()
     const status = this.add
-      .text(centerX, centerY - 20 * s, 'Loading...', {
-        fontFamily: FONTS.body,
-        fontSize: `${16 * s}px`,
-        color: COLORS.muted,
+      .text(GAME_WIDTH / 2, SPLASH.actionY, 'Loading...', {
+        fontFamily: FONTS.title,
+        fontSize: `${TYPE.button}px`,
+        color: COLORS.ink,
       })
       .setOrigin(0.5)
 
-    const graphics = this.add.graphics()
+    root.add([track, status])
+
+    const left = GAME_WIDTH / 2 - BUTTON.primaryWidth / 2
+    const top = SPLASH.actionY - BUTTON.height / 2
 
     const draw = (value: number): void => {
-      graphics.clear()
-      graphics.fillStyle(0x9ca2ae, 0.25)
-      graphics.fillRect(barLeft, centerY + 24 * s, barWidth, barHeight)
-      graphics.fillStyle(accent, 1)
-      graphics.fillRect(barLeft, centerY + 24 * s, barWidth * value, barHeight)
+      const filled = BUTTON.primaryWidth * Phaser.Math.Clamp(value, 0, 1)
+      track.clear()
+      track.fillStyle(Phaser.Display.Color.HexStringToColor(COLORS.muted).color, 0.25)
+      track.fillRoundedRect(left, top, BUTTON.primaryWidth, BUTTON.height, BUTTON.radius)
+      if (filled <= 0) return
+      track.fillStyle(accent, 1)
+      track.fillRoundedRect(left, top, filled, BUTTON.height, Math.min(BUTTON.radius, filled / 2))
     }
 
     draw(0)
+    fit()
 
     this.load.on('progress', (value: number) => {
-      draw(Phaser.Math.Clamp(value, 0, 1))
+      draw(value)
       status.setText(`Loading... ${Math.round(value * 100)}%`)
     })
 

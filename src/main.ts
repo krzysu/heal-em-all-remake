@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { COLORS, GAME_HEIGHT, GAME_WIDTH, TUNING } from './config'
 import { installOrientationGate } from './ui/orientation'
+import { installBrowserNavigation } from './ui/navigation'
 import { BootScene } from './scenes/BootScene'
 import { PreloadScene } from './scenes/PreloadScene'
 import { StartScene } from './scenes/StartScene'
@@ -11,6 +12,9 @@ import { HudScene } from './scenes/HudScene'
 import { LevelSummaryScene } from './scenes/LevelSummaryScene'
 import { GameOverScene } from './scenes/GameOverScene'
 import { EndScene } from './scenes/EndScene'
+
+/** Injected by Vite from `package.json` (see `vite.config.ts`). */
+declare const __APP_VERSION__: string
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -66,13 +70,16 @@ const config: Phaser.Types.Core.GameConfig = {
 export const game = new Phaser.Game(config)
 
 installOrientationGate(game)
+installBrowserNavigation(game)
 
 // Progressive web app: the service worker unlocks installability (and a cached
 // offline shell). Registered in production only so Vite's dev server and HMR are
 // never intercepted; without it the game still runs.
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {})
+    navigator.serviceWorker
+      .register(`${import.meta.env.BASE_URL}sw.js?v=${__APP_VERSION__}`)
+      .catch(() => {})
   })
 }
 

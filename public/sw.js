@@ -1,7 +1,11 @@
 // Service worker for installability (browsers require a fetch handler) plus a
 // cached offline fallback. Production only: `main.ts` registers it under
 // `import.meta.env.PROD`, so Vite's dev server and HMR are never intercepted.
-const CACHE = 'heal-em-all-v1'
+//
+// `main.ts` registers `sw.js?v=<package version>`, so a release installs a new
+// script and the activate handler evicts the previous version's cache.
+const VERSION = new URL(self.location.href).searchParams.get('v') || '0.0.0'
+const CACHE = `heal-em-all-${VERSION}`
 
 self.addEventListener('install', () => {
   self.skipWaiting()
@@ -21,7 +25,7 @@ self.addEventListener('fetch', (event) => {
   const request = event.request
   const url = new URL(request.url)
 
-  // Only same-origin GETs; let fonts and anything cross-origin go to the network.
+  // Only same-origin GETs; cross-origin requests go straight to the network.
   if (request.method !== 'GET' || url.origin !== self.location.origin) return
 
   // Navigations: network first so a new deploy is picked up, caching the response

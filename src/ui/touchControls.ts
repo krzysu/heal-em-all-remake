@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { FONTS } from '../config'
+import { TYPE } from './theme'
 import { isTouchDevice, resetTouchInput, touchInput } from './touchInput'
 
 /**
@@ -16,12 +17,12 @@ import { isTouchDevice, resetTouchInput, touchInput } from './touchInput'
 type ZoneKind = 'left' | 'right' | 'jump' | 'fire'
 
 /** Movement pad, in the HUD's zoomed view space. Anchored to the bottom edge. */
-const PAD_WIDTH = 240
-const PAD_HEIGHT = 160
-const PAD_MARGIN = 28
+const PAD_WIDTH = 196
+const PAD_HEIGHT = 132
+const PAD_MARGIN = 24
 const ARROW_INSET = PAD_WIDTH * 0.28
 
-const BUTTON_RADIUS = 68
+const BUTTON_RADIUS = 56
 
 const FILL = 0xffffff
 const FILL_ALPHA = 0.18
@@ -63,14 +64,14 @@ export class TouchControls {
     this.jumpLabel = scene.add
       .text(0, 0, 'JUMP', {
         fontFamily: FONTS.body,
-        fontSize: '28px',
+        fontSize: `${TYPE.touchLabel}px`,
         color: '#ffffff',
       })
       .setOrigin(0.5)
     this.fireLabel = scene.add
       .text(0, 0, 'FIRE', {
         fontFamily: FONTS.body,
-        fontSize: '28px',
+        fontSize: `${TYPE.touchLabel}px`,
         color: '#ffffff',
       })
       .setOrigin(0.5)
@@ -113,8 +114,8 @@ export class TouchControls {
     const height = this.scene.scale.height / this.zoom
 
     this.padRect.setTo(PAD_MARGIN, height - PAD_HEIGHT - PAD_MARGIN, PAD_WIDTH, PAD_HEIGHT)
-    this.jumpCenter.set(width - 190, height - 160)
-    this.fireCenter.set(width - 80, height - 300)
+    this.jumpCenter.set(width - 150, height - 110)
+    this.fireCenter.set(width - 78, height - 230)
     this.jumpLabel.setPosition(this.jumpCenter.x, this.jumpCenter.y)
     this.fireLabel.setPosition(this.fireCenter.x, this.fireCenter.y)
 

@@ -1,4 +1,6 @@
 import Phaser from 'phaser'
+import { GAME_WIDTH } from '../config'
+import { FRAME } from './theme'
 
 /**
  * Menu layout helpers for the adaptive (`Scale.EXPAND`) canvas.
@@ -20,14 +22,6 @@ export function uiScale(scene: Phaser.Scene): number {
 }
 
 /**
- * Render size of the live canvas in design pixels. With `Scale.EXPAND` this is
- * the authoring size grown to the window aspect, not a fixed 1920x1080.
- */
-export function screenSize(scene: Phaser.Scene): { width: number; height: number } {
-  return { width: scene.scale.width, height: scene.scale.height }
-}
-
-/**
  * Full-bleed graveyard backdrop. The original set this via CSS
  * `background: url(bg.gif) center center no-repeat; background-size: cover`, so
  * scale it up uniformly until it covers the visible area and centre it. The menu
@@ -45,16 +39,24 @@ export interface MenuFrame {
   fit: () => void
 }
 
+export interface MenuFrameOptions {
+  /**
+   * Full-bleed graveyard backdrop. Off for screens drawn before the `bg` texture
+   * has loaded (the loading screen), which fall back to the camera colour.
+   */
+  backdrop?: boolean
+}
+
 /**
  * Creates the container and backdrop for a menu scene and returns a `fit`
- * callback. `fit` zooms the camera to make the content fill the window (capped
- * by `uiScale`) and re-centres it, then keeps the backdrop covering the view.
- * It is also installed as the scene's RESIZE handler, so call it once after
- * populating `root`.
+ * callback. `fit` zooms the camera to make the shared title-to-action band fill
+ * the window (capped by `uiScale`) and re-centres it, then keeps the backdrop
+ * covering the view. It is also installed as the scene's RESIZE handler, so
+ * call it once after populating `root`.
  */
-export function createMenuFrame(scene: Phaser.Scene): MenuFrame {
+export function createMenuFrame(scene: Phaser.Scene, options: MenuFrameOptions = {}): MenuFrame {
   const root = scene.add.container(0, 0)
-  const backdrop = addMenuBackdrop(scene)
+  const backdrop = (options.backdrop ?? true) ? addMenuBackdrop(scene) : undefined
 
   const fit = (): void => {
     if (root.length === 0) return
@@ -62,25 +64,38 @@ export function createMenuFrame(scene: Phaser.Scene): MenuFrame {
     const width = scene.scale.width
     const height = scene.scale.height
     const bounds = root.getBounds()
-    const margin = 48
+    // Breathing room between the fitted band and the window edge. Applied to
+    // both axes, so titles and action buttons always keep this inset.
+    const margin = 80
 
-    // Never exceed the requested UI scale, but shrink if the content would not
-    // fit on this aspect ratio (a very short window, say).
+    // Fit to the shared title-to-action band rather than to this screen's own
+    // bounds, so a short screen (Game Over) does not zoom in more than a tall
+    // one (level select) and every menu renders at the same scale. Width still
+    // uses the real bounds so a narrow window cannot clip wide content.
     const fitScale = Math.min(
       (width - margin * 2) / Math.max(bounds.width, 1),
-      (height - margin * 2) / Math.max(bounds.height, 1),
+      (height - margin * 2) / FRAME.band,
     )
     const zoom = Phaser.Math.Clamp(Math.min(uiScale(scene), fitScale), 0.6, 1.4)
 
+    // Centre horizontally on the design space, not on the content bounds: a
+    // screen with an off-centre detail (the audio icon beside the level grid)
+    // would otherwise drag the whole layout sideways, leaving the title off
+    // centre. Vertically the content bounds are still the anchor.
+    const centerX = GAME_WIDTH / 2
+    const centerY = bounds.centerY
+
     const camera = scene.cameras.main
     camera.setZoom(zoom)
-    camera.centerOn(bounds.centerX, bounds.centerY)
+    camera.centerOn(centerX, centerY)
 
     // The camera looks at the content centre, so a backdrop centred there and
     // sized to the zoomed view covers the whole window.
-    const source = scene.textures.get('bg').getSourceImage()
-    const cover = Math.max(width / zoom / source.width, height / zoom / source.height)
-    backdrop.setPosition(bounds.centerX, bounds.centerY).setScale(cover)
+    if (backdrop) {
+      const source = scene.textures.get('bg').getSourceImage()
+      const cover = Math.max(width / zoom / source.width, height / zoom / source.height)
+      backdrop.setPosition(centerX, centerY).setScale(cover)
+    }
   }
 
   scene.scale.on(Phaser.Scale.Events.RESIZE, fit)

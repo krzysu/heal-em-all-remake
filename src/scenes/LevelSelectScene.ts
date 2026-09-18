@@ -2,8 +2,11 @@ import Phaser from 'phaser'
 import { COLORS, FONTS, GAME_HEIGHT, GAME_WIDTH, TOTAL_LEVELS } from '../config'
 import { GameState } from '../state/GameState'
 import { createMenuFrame } from '../ui/layout'
+import { addButtonFeedback } from '../ui/buttons'
+import { navigate } from '../ui/navigation'
 import { createAudioButton, applyMutedState, toggleMute } from '../ui/audioButton'
 import { bindScreenKeys } from '../ui/keyboard'
+import { FRAME, TYPE } from '../ui/theme'
 
 /**
  * Port of `level_select.coffee`.
@@ -18,7 +21,6 @@ import { bindScreenKeys } from '../ui/keyboard'
 const COLUMNS = 3
 const ROWS = 2
 const MARGIN_X_PCT = 20
-const MARGIN_Y_PCT = 12
 const GUTTER_X_PCT = 8
 const GUTTER_Y_PCT = 10
 const COLUMN_PCT = (100 - MARGIN_X_PCT * 2 - (COLUMNS - 1) * GUTTER_X_PCT) / COLUMNS
@@ -27,6 +29,15 @@ const ROW_PCT = 22
 /** Earned-star skulls follow the original's deliberately uneven Y pattern. */
 const STAR_X = [-60, 0, 60]
 const STAR_Y = [34, 50, 40]
+
+/**
+ * The original Quintus button anchored its label at the sheet's (86, 65) while
+ * the 171px frame is centred at (85.5, 85.5), and the star offsets were measured
+ * from that same anchor. Applying it here puts the level number on the
+ * headstone and the skulls on the mound, instead of both sitting too low.
+ */
+const ANCHOR_X = 86 - 85.5
+const ANCHOR_Y = 65 - 85.5
 
 export class LevelSelectScene extends Phaser.Scene {
   constructor() {
@@ -41,16 +52,18 @@ export class LevelSelectScene extends Phaser.Scene {
     const marginX = GAME_WIDTH * MARGIN_X_PCT * 0.01
     const gutterX = GAME_WIDTH * GUTTER_X_PCT * 0.01
     const columnWidth = GAME_WIDTH * COLUMN_PCT * 0.01
-    const marginY = GAME_HEIGHT * MARGIN_Y_PCT * 0.01
     const gutterY = GAME_HEIGHT * GUTTER_Y_PCT * 0.01
     const rowHeight = GAME_HEIGHT * ROW_PCT * 0.01
+    // Centre the grid on the shared content band instead of hanging it from a
+    // top margin, so the title above it sits on the same line as every screen.
+    const gridTop = FRAME.contentY - (ROWS * (rowHeight + gutterY)) / 2
     const scale = columnWidth / 171
 
     root.add(
       this.add
-        .text(GAME_WIDTH / 2, marginY / 2, 'Everything begins here!', {
+        .text(GAME_WIDTH / 2, FRAME.titleY, 'Everything begins here!', {
           fontFamily: FONTS.title,
-          fontSize: '60px',
+          fontSize: `${TYPE.title}px`,
           color: COLORS.title,
         })
         .setOrigin(0.5),
@@ -72,10 +85,10 @@ export class LevelSelectScene extends Phaser.Scene {
       cellHeight: rowHeight + gutterY,
       position: Phaser.Display.Align.CENTER,
       x: marginX,
-      y: marginY,
+      y: gridTop,
     })
 
-    root.add(createAudioButton(this, GAME_WIDTH - marginX, marginY / 2))
+    root.add(createAudioButton(this, GAME_WIDTH - marginX, FRAME.titleY))
 
     fit()
 
@@ -84,7 +97,7 @@ export class LevelSelectScene extends Phaser.Scene {
     const continueAt = Math.min(GameState.availableLevel, TOTAL_LEVELS)
     bindScreenKeys(this, {
       confirm: () => this.enter(continueAt),
-      back: () => this.scene.start('Start'),
+      back: () => navigate(this, 'Start'),
       mute: () => toggleMute(this),
     })
   }
@@ -99,7 +112,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
     // Locked tombstones show a padlock in the art instead of a number.
     const label = this.add
-      .text(0, 0, unlocked ? String(level) : '', {
+      .text(ANCHOR_X * scale, ANCHOR_Y * scale, unlocked ? String(level) : '', {
         fontFamily: FONTS.title,
         fontSize: `${Math.round(70 * scale)}px`,
         color: '#595f5f',
@@ -116,8 +129,8 @@ export class LevelSelectScene extends Phaser.Scene {
         container.add(
           this.add
             .image(
-              (STAR_X[i] ?? 0) * scale,
-              34 + ((STAR_Y[i] ?? 40) - 34) * scale,
+              (ANCHOR_X + (STAR_X[i] ?? 0)) * scale,
+              (ANCHOR_Y + (STAR_Y[i] ?? 40)) * scale,
               'others',
               'ui_level_score_small:0',
             )
@@ -128,9 +141,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
     if (unlocked) {
       image.setInteractive({ useHandCursor: true })
-      image.on('pointerover', () => container.setScale(1.05))
-      image.on('pointerout', () => container.setScale(1))
-      image.on('pointerup', () => this.enter(level))
+      addButtonFeedback(this, container, { source: image, onClick: () => this.enter(level) })
     }
 
     return container
@@ -139,9 +150,9 @@ export class LevelSelectScene extends Phaser.Scene {
   /** Level 1 opens the tutorial, every other level starts straight away. */
   private enter(level: number): void {
     if (level === 1) {
-      this.scene.start('Controls')
+      navigate(this, 'Controls')
       return
     }
-    this.scene.start('Game', { level })
+    navigate(this, 'Game', { level })
   }
 }

@@ -1,24 +1,26 @@
 import Phaser from 'phaser'
-import { COLORS, FONTS, GAME_HEIGHT, GAME_WIDTH, TOTAL_LEVELS } from '../config'
+import { COLORS, FONTS, GAME_WIDTH, TOTAL_LEVELS } from '../config'
 import { GameState } from '../state/GameState'
 import { createMenuFrame } from '../ui/layout'
 import { createTextButton } from '../ui/buttons'
+import { navigate } from '../ui/navigation'
 import { bindScreenKeys } from '../ui/keyboard'
 import { applyMutedState, toggleMute } from '../ui/audioButton'
+import { BUTTON, FRAME, TYPE } from '../ui/theme'
 
 /**
  * Port of `level_summary.coffee`.
  *
  * Two columns split by the same 20% / 8% / 24% math as the original: the stat
  * lines sit in the left column, the three big skulls in the right one. The
- * stat rows are the original's, including its "Bullets wasted" wording.
+ * stat rows are the original's, including its "Bullets wasted" wording, but
+ * sized on the shared type scale so they read against the big skulls.
  */
 const MARGIN_X_PCT = 20
 const GUTTER_X_PCT = 8
 const COLUMNS = 2
 const COLUMN_PCT = (100 - MARGIN_X_PCT * 2 - (COLUMNS - 1) * GUTTER_X_PCT) / COLUMNS
-const MARGIN_Y_PCT = 25
-const LINE_HEIGHT = 50
+const LINE_HEIGHT = 66
 
 /** `ui_level_score` is 80 wide in others.json; only its width steps the row. */
 const SKULL_WIDTH = 80
@@ -40,13 +42,12 @@ export class LevelSummaryScene extends Phaser.Scene {
     const marginX = GAME_WIDTH * MARGIN_X_PCT * 0.01
     const gutterX = GAME_WIDTH * GUTTER_X_PCT * 0.01
     const columnWidth = GAME_WIDTH * COLUMN_PCT * 0.01
-    const marginY = GAME_HEIGHT * MARGIN_Y_PCT * 0.01
 
     root.add(
       this.add
-        .text(GAME_WIDTH / 2, marginY / 2, 'Well done!', {
+        .text(GAME_WIDTH / 2, FRAME.titleY, 'Well done!', {
           fontFamily: FONTS.title,
-          fontSize: '100px',
+          fontSize: `${TYPE.title}px`,
           color: COLORS.title,
         })
         .setOrigin(0.5),
@@ -68,9 +69,9 @@ export class LevelSummaryScene extends Phaser.Scene {
     entries.forEach((entry, index) => {
       root.add(
         this.add
-          .text(summaryX, GAME_HEIGHT / 2 + (index - 1.5) * LINE_HEIGHT, entry, {
+          .text(summaryX, FRAME.contentY + (index - 1.5) * LINE_HEIGHT, entry, {
             fontFamily: FONTS.body,
-            fontSize: '36px',
+            fontSize: `${TYPE.body}px`,
             color: COLORS.accent,
           })
           .setOrigin(0.5),
@@ -84,37 +85,32 @@ export class LevelSummaryScene extends Phaser.Scene {
       root.add(
         this.add.image(
           starsX + (SKULL_WIDTH + 20) * (index - 1.5),
-          GAME_HEIGHT / 2 - LINE_HEIGHT / 2,
+          FRAME.contentY - LINE_HEIGHT / 2,
           'others',
           index < earned ? 'ui_level_score:0' : 'ui_level_score_empty:0',
         ),
       )
     }
 
-    const buttonWidth = GAME_WIDTH / 4
-    const buttonY = GAME_HEIGHT - marginY
-    const gap = 40
+    const buttonWidth = BUTTON.secondaryWidth
+    const gap = BUTTON.gap
 
     root.add(
-      createTextButton(this, GAME_WIDTH / 2 - buttonWidth / 2 - gap, buttonY, {
+      createTextButton(this, GAME_WIDTH / 2 - buttonWidth / 2 - gap, FRAME.actionY, {
         label: 'All levels',
         width: buttonWidth,
-        height: 70,
         fill: COLORS.title,
-        fontSize: 58,
-        onClick: () => this.scene.start('LevelSelect'),
+        onClick: () => navigate(this, 'LevelSelect'),
       }),
     )
 
     root.add(
-      createTextButton(this, GAME_WIDTH / 2 + buttonWidth / 2 + gap, buttonY, {
+      createTextButton(this, GAME_WIDTH / 2 + buttonWidth / 2 + gap, FRAME.actionY, {
         label: hasNext ? 'Play next' : 'The End',
         width: buttonWidth,
-        height: 70,
         fill: COLORS.accent,
-        fontSize: 58,
         onClick: () =>
-          hasNext ? this.scene.start('Game', { level: level + 1 }) : this.scene.start('End'),
+          hasNext ? navigate(this, 'Game', { level: level + 1 }) : navigate(this, 'End'),
       }),
     )
 
@@ -123,8 +119,8 @@ export class LevelSummaryScene extends Phaser.Scene {
     // Enter / Space mirrors "Play next", Escape returns to the level list.
     bindScreenKeys(this, {
       confirm: () =>
-        hasNext ? this.scene.start('Game', { level: level + 1 }) : this.scene.start('End'),
-      back: () => this.scene.start('LevelSelect'),
+        hasNext ? navigate(this, 'Game', { level: level + 1 }) : navigate(this, 'End'),
+      back: () => navigate(this, 'LevelSelect'),
       mute: () => toggleMute(this),
     })
   }

@@ -2,9 +2,12 @@ import Phaser from 'phaser'
 import { COLORS, FONTS, WORLD_ZOOM } from '../config'
 import { bus, Events, GameState } from '../state/GameState'
 import { bindScreenKeys } from '../ui/keyboard'
-import { applyMutedState, toggleMute } from '../ui/audioButton'
+import { applyMutedState, createAudioButton, toggleMute } from '../ui/audioButton'
+import { addButtonFeedback } from '../ui/buttons'
 import { TouchControls } from '../ui/touchControls'
 import { uiScale } from '../ui/layout'
+import { navigate } from '../ui/navigation'
+import { TYPE } from '../ui/theme'
 
 /**
  * HUD rebuilt to the original `hud.coffee` layout: a gradient bar, the doctor's
@@ -28,10 +31,14 @@ const CENTER_Y = 40
 /** Avatar frame width; the speech bubble starts at its right edge. */
 const AVATAR_WIDTH = 81
 const BUBBLE_PADDING = { x: 10, y: 5 }
-const NUMBER_SIZE = 34
 /** Gaps between counter groups, straight from `hud.coffee`. */
 const GROUP_GAP = 20
 const KEY_GAP = 34
+/** Right-edge icon buttons, stacked below the counters. */
+const BUTTON_X = 30
+const PAUSE_Y = 100
+const BACK_Y = 150
+const AUDIO_Y = 200
 
 interface Counter {
   container: Phaser.GameObjects.Container
@@ -47,7 +54,6 @@ export class HudScene extends Phaser.Scene {
   private avatar!: Phaser.GameObjects.Image
   private bubble!: Phaser.GameObjects.Graphics
   private bubbleText!: Phaser.GameObjects.Text
-  private infoFade?: Phaser.Tweens.Tween | undefined
 
   private enemiesCounter!: Counter
   private bulletsCounter!: Counter
@@ -55,6 +61,7 @@ export class HudScene extends Phaser.Scene {
   private keyCounter!: Counter
   private pauseButton!: Phaser.GameObjects.Image
   private backButton!: Phaser.GameObjects.Image
+  private audioButton!: Phaser.GameObjects.Image
   private pauseOverlay?: Phaser.GameObjects.Container | undefined
   private paused = false
   private touchControls?: TouchControls
@@ -85,6 +92,9 @@ export class HudScene extends Phaser.Scene {
     this.zombies = run?.zombiesRemaining ?? 0
     this.hasKey = run?.hasKey ?? false
     this.paused = false
+    // Scenes are singletons: a restart reuses this instance, so drop any
+    // overlay destroyed by the previous shutdown before laying out again.
+    this.pauseOverlay = undefined
 
     // The HUD matches the world's zoom and is anchored to the top-left, so its
     // reference-space constants keep their original meaning. An origin of (0, 0)
@@ -104,7 +114,7 @@ export class HudScene extends Phaser.Scene {
     this.bubbleText = this.add
       .text(0, CENTER_Y, '', {
         fontFamily: FONTS.body,
-        fontSize: '24px',
+        fontSize: `${TYPE.hudBubble}px`,
         color: COLORS.panel,
       })
       .setOrigin(0, 0.5)
@@ -117,6 +127,7 @@ export class HudScene extends Phaser.Scene {
     this.keyCounter = this.makeCounter('hud_key_empty:0', COLORS.accent, 0, { withText: false })
     this.pauseButton = this.createIconButton('hud_pause_button:0', () => this.togglePause())
     this.backButton = this.createIconButton('hud_back_button:0', () => this.leaveLevel())
+    this.audioButton = createAudioButton(this, 0, 0, { scale: 1 })
 
     this.refresh()
     this.layout()
@@ -167,7 +178,7 @@ export class HudScene extends Phaser.Scene {
       counter.text = this.add
         .text(0, 0, '0', {
           fontFamily: FONTS.body,
-          fontSize: `${NUMBER_SIZE}px`,
+          fontSize: `${TYPE.hudNumber}px`,
           color,
         })
         .setOrigin(0.5)
@@ -185,10 +196,9 @@ export class HudScene extends Phaser.Scene {
   }
 
   private createIconButton(frame: string, onClick: () => void): Phaser.GameObjects.Image {
-    return this.add
-      .image(0, 0, 'hud', frame)
-      .setInteractive({ useHandCursor: true })
-      .on('pointerup', onClick)
+    const image = this.add.image(0, 0, 'hud', frame).setInteractive({ useHandCursor: true })
+    addButtonFeedback(this, image, { onClick })
+    return image
   }
 
   /** Mirrors `hud.coffee`'s right-to-left chaining and `fit(0, 8)` padding. */
@@ -243,8 +253,9 @@ export class HudScene extends Phaser.Scene {
 
     this.drawGradient(width)
     this.avatar.setPosition(AVATAR_WIDTH / 2, 35.5)
-    this.pauseButton.setPosition(width - 30, 110)
-    this.backButton.setPosition(width - 30, 170)
+    this.pauseButton.setPosition(width - BUTTON_X, PAUSE_Y)
+    this.backButton.setPosition(width - BUTTON_X, BACK_Y)
+    this.audioButton.setPosition(width - BUTTON_X, AUDIO_Y)
     if (this.enemiesCounter.standaloneIcon) {
       this.enemiesCounter.icon.setPosition(
         width - this.enemiesCounter.icon.width / 2,
@@ -324,19 +335,14 @@ export class HudScene extends Phaser.Scene {
     this.refresh()
   }
 
+  /**
+   * Hints stay on screen until the next one replaces them, matching the
+   * original's `InfoLabel` (which only ever changed on an explicit event). No
+   * fade: a doctor's line should not vanish while the player is still reading.
+   */
   private onInfo(message: string): void {
     this.bubbleText.setText(message)
-    this.bubble.setAlpha(1)
-    this.bubbleText.setAlpha(1)
     this.layoutBubble()
-
-    this.infoFade?.remove()
-    this.infoFade = this.tweens.add({
-      targets: [this.bubble, this.bubbleText],
-      alpha: 0,
-      delay: 2600,
-      duration: 500,
-    })
   }
 
   private onPlayerMode(mode: 'doctor' | 'zombie'): void {
@@ -373,7 +379,7 @@ export class HudScene extends Phaser.Scene {
     const label = this.add
       .text(width / 2, height / 2, 'Paused', {
         fontFamily: FONTS.title,
-        fontSize: '100px',
+        fontSize: `${TYPE.title}px`,
         color: COLORS.title,
       })
       .setOrigin(0.5)
@@ -382,7 +388,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   private layoutPauseOverlay(): void {
-    if (!this.pauseOverlay) return
+    if (!this.pauseOverlay || this.pauseOverlay.list.length < 2) return
     const width = this.viewWidth()
     const height = this.scale.height / this.zoom
     const [shade, label] = this.pauseOverlay.list as [
@@ -394,6 +400,6 @@ export class HudScene extends Phaser.Scene {
   }
 
   private leaveLevel(): void {
-    this.scene.get('Game').scene.start('LevelSelect')
+    navigate(this.scene.get('Game'), 'LevelSelect')
   }
 }

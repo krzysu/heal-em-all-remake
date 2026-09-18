@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { COLORS, TILE_SIZE, TUNING, WORLD_ZOOM } from '../config'
 import { bus, Events, GameState, type RunState } from '../state/GameState'
 import { touchInput } from '../ui/touchInput'
+import { navigate } from '../ui/navigation'
 import { Player, type PlayerMode } from '../entities/Player'
 import { Zombie } from '../entities/Zombie'
 import { Human } from '../entities/Human'
@@ -71,7 +72,7 @@ export class GameScene extends Phaser.Scene {
     const xml = this.cache.text.get(`level${this.level}`) as string | undefined
     if (!xml) {
       console.error(`[GameScene] no map loaded for level ${this.level}`)
-      this.scene.start('LevelSelect')
+      navigate(this, 'LevelSelect')
       return
     }
 
@@ -369,7 +370,7 @@ export class GameScene extends Phaser.Scene {
     keyboard.on('keydown-X', queueJump)
     keyboard.on('keydown-W', queueJump)
 
-    keyboard.on('keydown-ESC', () => this.scene.start('LevelSelect'))
+    keyboard.on('keydown-ESC', () => navigate(this, 'LevelSelect'))
     keyboard.on('keydown-R', () => this.scene.restart({ level: this.level }))
     // P and M live on the HUD scene, which owns the pause overlay and the audio
     // button; Space is deliberately not a confirm here because it fires the gun.
@@ -681,7 +682,7 @@ export class GameScene extends Phaser.Scene {
   private gameOver(): void {
     this.zombieMusic?.stop()
     this.music?.stop()
-    this.scene.start('GameOver')
+    navigate(this, 'GameOver')
   }
 
   private finishLevel(): void {
@@ -695,7 +696,7 @@ export class GameScene extends Phaser.Scene {
     const stars = score <= 0.5 ? 1 : score < 0.9 ? 2 : 3
 
     GameState.completeRun({ stars, nextLevel: this.level + 1 })
-    this.scene.start('LevelSummary')
+    navigate(this, 'LevelSummary')
   }
 
   // ------------------------------------------------------------------ fx ---
