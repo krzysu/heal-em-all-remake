@@ -73,17 +73,19 @@ Keyboard handlers can be driven without real key events by emitting on the scene
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:opencode -->
 
-## Issue Tracking with bd (beads)
+## Beads Issue Tracker
 
-This project uses **bd** for ALL issue tracking - no markdown TODOs, no external trackers. Issues live in a local Dolt DB; cross-machine sync uses `bd dolt push/pull` (stored under `refs/dolt/data` on the git remote); `.beads/issues.jsonl` is a passive export, not the wire protocol.
+This project uses **bd (beads)** for ALL issue tracking — no markdown TODOs, no TodoWrite/TaskCreate, no external trackers. Issues live in a local Dolt DB; sync uses `bd dolt push/pull` (`refs/dolt/data` on the git remote); `.beads/issues.jsonl` is a passive export, not the wire protocol.
+
+**Run `bd prime` before any beads work and before ending a session** — it is the SSOT for commands, the session-close protocol and the git policy (commit/push only when explicitly authorized).
 
 ```bash
-bd prime                              # Full workflow context (source of truth)
-bd ready                              # Issues ready to work (no blockers)
-bd create "title" -t task -p 2        # Create a new issue
-bd update <id> --claim                # Claim work atomically
-bd close <id>                         # Mark complete
-bd dolt push                          # Sync with remote when authorized
+bd prime                              # full workflow context (SSOT)
+bd ready                              # unblocked work
+bd create "title" -t task -p 2        # new issue
+bd update <id> --claim                # claim atomically
+bd close <id>                         # complete
+bd dolt push                          # sync when authorized
 ```
 
 <!-- END BEADS INTEGRATION -->
