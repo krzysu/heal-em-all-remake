@@ -38,6 +38,31 @@ export const TILE_SIZE = 70
 
 export const TOTAL_LEVELS = 6
 
+/**
+ * Which map set the campaign plays. `screens` = the single-screen rooms
+ * (`public/assets/data/screen*.tmx`, one 20x12 board per level, camera never
+ * scrolls); `classic` = the six original scrolling levels. The originals are
+ * never edited, so switching the whole campaign back is this one constant.
+ */
+export const LEVEL_SET: 'screens' | 'classic' = 'screens'
+
+/** Map file for a level, following `LEVEL_SET`. */
+export const LEVEL_MAP_PATH = (level: number): string =>
+  LEVEL_SET === 'screens' ? `data/screen${level}.tmx` : `data/level${level}.tmx`
+
+/**
+ * Single-screen room format: the whole board is always visible and the camera
+ * is fixed on it. `fit` leaves a thin frame around the board so it reads as a
+ * screen rather than a cropped view.
+ */
+export const SCREEN = {
+  tilesWide: 20,
+  tilesHigh: 12,
+  fit: 0.96,
+  /** Camera bounds slack, in world px, so a centred fixed camera never clamps. */
+  pad: 400,
+} as const
+
 export const COLORS = {
   bg: '#3c4556',
   title: '#f2da38',
@@ -57,6 +82,7 @@ export const FONTS = {
 export const STORAGE_KEYS = {
   availableLevel: 'zombieGame:availableLevel',
   levelProgress: 'zombieGame:levelProgress',
+  abilities: 'zombieGame:abilities',
 } as const
 
 /** Asset paths are relative to Vite's BASE_URL. */
@@ -90,7 +116,6 @@ export const ASSETS = {
     playerHit: 'audio/player_hit.mp3',
     humanCreated: 'audio/human_created.mp3',
   },
-  levels: (n: number) => `data/level${n}.tmx`,
 } as const
 
 /**
@@ -132,4 +157,20 @@ export const TUNING = {
   /** Hit-stop: briefly slow the sim for impact. timeScale 4 = quarter speed. */
   hitStopMs: 70,
   hitStopScale: 4,
+  /** Tools the rooms hand out. See `src/levels/abilities.ts`. */
+  dashSpeed: 1000,
+  dashMs: 340,
+  dashCooldownMs: 900,
+  dashInvincibleMs: 320,
+  /** Hold fire this long for a charged round (needs the charge tool). */
+  chargeMs: 650,
+  /** Fan angle of the spread shot, degrees up and down. */
+  spreadAngleDeg: 11,
+  meleeRange: 54,
+  meleeCooldownMs: 900,
+  meleeKnockback: 260,
+  /** Chain cure: how close another zombie must be to the fresh human. */
+  chainRadius: 46,
+  /** A charged round counts as this many hits, so it punches armour. */
+  heavyPower: 3,
 } as const

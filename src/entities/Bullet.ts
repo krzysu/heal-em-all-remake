@@ -2,6 +2,14 @@ import Phaser from 'phaser'
 import { TUNING } from '../config'
 import type { Player } from './Player'
 
+export interface BulletOptions {
+  /** Rounds are flat by default; the spread shot fans them out. */
+  angleDeg?: number
+  /** Hits this round counts for. A charged round punches armour. */
+  power?: number
+  heavy?: boolean
+}
+
 /**
  * The doctor's healing round.
  *
@@ -12,21 +20,40 @@ import type { Player } from './Player'
 export class Bullet extends Phaser.Physics.Arcade.Sprite {
   declare body: Phaser.Physics.Arcade.Body
 
+  /** Hits this round deals when it lands. 1 normally, 3 when charged. */
+  readonly power: number
+
   private readonly startX: number
   private spent = false
 
-  constructor(scene: Phaser.Scene, x: number, y: number, direction: 1 | -1) {
+  constructor(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    direction: 1 | -1,
+    options: BulletOptions = {},
+  ) {
     super(scene, x, y, 'bullet', 'bullet:0')
 
     scene.add.existing(this)
     scene.physics.add.existing(this)
 
+    this.power = options.power ?? 1
     this.startX = x
     this.body.setAllowGravity(false)
     this.body.setSize(11, 8)
     this.setDepth(30)
     this.setFlipX(direction < 0)
-    this.setVelocityX(direction * TUNING.bulletSpeed)
+
+    const angle = Phaser.Math.DegToRad(options.angleDeg ?? 0)
+    const vx = Math.cos(angle) * TUNING.bulletSpeed * direction
+    const vy = Math.sin(angle) * TUNING.bulletSpeed
+    this.setVelocity(vx, vy)
+
+    if (options.heavy) {
+      this.setScale(1.8)
+      this.setTint(0xfff2a0)
+    }
 
     this.play('bullet:fly')
   }
@@ -68,8 +95,8 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
   }
 
   /** Convenience for the scene's overlap handlers. */
-  static spawnFor(scene: Phaser.Scene, player: Player): Bullet {
+  static spawnFor(scene: Phaser.Scene, player: Player, options: BulletOptions = {}): Bullet {
     const muzzleX = player.x + player.facing * 15
-    return new Bullet(scene, muzzleX, player.y + 3, player.facing)
+    return new Bullet(scene, muzzleX, player.y + 3, player.facing, options)
   }
 }

@@ -14,7 +14,7 @@ import { isTouchDevice, resetTouchInput, touchInput } from './touchInput'
  * which `GameScene` polls each frame.
  */
 
-type ZoneKind = 'left' | 'right' | 'jump' | 'fire'
+type ZoneKind = 'left' | 'right' | 'jump' | 'fire' | 'dash' | 'melee'
 
 /** Movement pad, in the HUD's zoomed view space. Anchored to the bottom edge. */
 const PAD_WIDTH = 196
@@ -23,6 +23,8 @@ const PAD_MARGIN = 24
 const ARROW_INSET = PAD_WIDTH * 0.28
 
 const BUTTON_RADIUS = 56
+/** The two tool buttons sit tighter, so the right-hand cluster still fits. */
+const TOOL_RADIUS = 46
 
 const FILL = 0xffffff
 const FILL_ALPHA = 0.18
@@ -35,17 +37,25 @@ export class TouchControls {
   private readonly pad: Phaser.GameObjects.Graphics
   private readonly jump: Phaser.GameObjects.Graphics
   private readonly fire: Phaser.GameObjects.Graphics
+  private readonly dash: Phaser.GameObjects.Graphics
+  private readonly melee: Phaser.GameObjects.Graphics
   private readonly jumpLabel: Phaser.GameObjects.Text
   private readonly fireLabel: Phaser.GameObjects.Text
+  private readonly dashLabel: Phaser.GameObjects.Text
+  private readonly meleeLabel: Phaser.GameObjects.Text
   private readonly padRect = new Phaser.Geom.Rectangle()
   private readonly jumpCenter = new Phaser.Math.Vector2()
   private readonly fireCenter = new Phaser.Math.Vector2()
+  private readonly dashCenter = new Phaser.Math.Vector2()
+  private readonly meleeCenter = new Phaser.Math.Vector2()
   private readonly active = new Map<number, ZoneKind>()
   private readonly pressed: Record<ZoneKind, boolean> = {
     left: false,
     right: false,
     jump: false,
     fire: false,
+    dash: false,
+    melee: false,
   }
 
   /** Whether this device gets touch controls at all. */
@@ -61,6 +71,8 @@ export class TouchControls {
     this.pad = scene.add.graphics()
     this.jump = scene.add.graphics()
     this.fire = scene.add.graphics()
+    this.dash = scene.add.graphics()
+    this.melee = scene.add.graphics()
     this.jumpLabel = scene.add
       .text(0, 0, 'JUMP', {
         fontFamily: FONTS.body,
@@ -75,9 +87,33 @@ export class TouchControls {
         color: '#ffffff',
       })
       .setOrigin(0.5)
+    this.dashLabel = scene.add
+      .text(0, 0, 'DASH', {
+        fontFamily: FONTS.body,
+        fontSize: `${TYPE.touchLabel}px`,
+        color: '#ffffff',
+      })
+      .setOrigin(0.5)
+    this.meleeLabel = scene.add
+      .text(0, 0, 'HIT', {
+        fontFamily: FONTS.body,
+        fontSize: `${TYPE.touchLabel}px`,
+        color: '#ffffff',
+      })
+      .setOrigin(0.5)
 
     this.root = scene.add
-      .container(0, 0, [this.pad, this.jump, this.fire, this.jumpLabel, this.fireLabel])
+      .container(0, 0, [
+        this.pad,
+        this.jump,
+        this.fire,
+        this.dash,
+        this.melee,
+        this.jumpLabel,
+        this.fireLabel,
+        this.dashLabel,
+        this.meleeLabel,
+      ])
       .setDepth(900)
       .setVisible(false)
 
@@ -116,12 +152,18 @@ export class TouchControls {
     this.padRect.setTo(PAD_MARGIN, height - PAD_HEIGHT - PAD_MARGIN, PAD_WIDTH, PAD_HEIGHT)
     this.jumpCenter.set(width - 150, height - 110)
     this.fireCenter.set(width - 78, height - 230)
+    this.dashCenter.set(width - 224, height - 150)
+    this.meleeCenter.set(width - 140, height - 300)
     this.jumpLabel.setPosition(this.jumpCenter.x, this.jumpCenter.y)
     this.fireLabel.setPosition(this.fireCenter.x, this.fireCenter.y)
+    this.dashLabel.setPosition(this.dashCenter.x, this.dashCenter.y)
+    this.meleeLabel.setPosition(this.meleeCenter.x, this.meleeCenter.y)
 
     this.drawPad()
-    this.drawButton(this.jump, this.jumpCenter, this.pressed.jump)
-    this.drawButton(this.fire, this.fireCenter, this.pressed.fire)
+    this.drawButton(this.jump, this.jumpCenter, this.pressed.jump, BUTTON_RADIUS)
+    this.drawButton(this.fire, this.fireCenter, this.pressed.fire, BUTTON_RADIUS)
+    this.drawButton(this.dash, this.dashCenter, this.pressed.dash, TOOL_RADIUS)
+    this.drawButton(this.melee, this.meleeCenter, this.pressed.melee, TOOL_RADIUS)
   }
 
   // ------------------------------------------------------------- pointers ---
@@ -152,8 +194,10 @@ export class TouchControls {
     if (previous === zone) return
 
     this.active.set(pointer.id, zone)
-    // Sliding into the jump button counts as a press, like pressing it.
+    // Sliding into a button counts as a press, like pressing it.
     if (zone === 'jump') touchInput.jumpQueued = true
+    if (zone === 'dash') touchInput.dashQueued = true
+    if (zone === 'melee') touchInput.meleeQueued = true
     this.sync()
   }
 
@@ -165,12 +209,25 @@ export class TouchControls {
     if (Phaser.Math.Distance.Between(x, y, this.fireCenter.x, this.fireCenter.y) <= BUTTON_RADIUS) {
       return 'fire'
     }
+    if (Phaser.Math.Distance.Between(x, y, this.dashCenter.x, this.dashCenter.y) <= TOOL_RADIUS) {
+      return 'dash'
+    }
+    if (Phaser.Math.Distance.Between(x, y, this.meleeCenter.x, this.meleeCenter.y) <= TOOL_RADIUS) {
+      return 'melee'
+    }
     return null
   }
 
   /** Recomputes the shared state and repaints any button that changed. */
   private sync(): void {
-    const next: Record<ZoneKind, boolean> = { left: false, right: false, jump: false, fire: false }
+    const next: Record<ZoneKind, boolean> = {
+      left: false,
+      right: false,
+      jump: false,
+      fire: false,
+      dash: false,
+      melee: false,
+    }
     for (const zone of this.active.values()) next[zone] = true
 
     touchInput.left = next.left
@@ -185,11 +242,19 @@ export class TouchControls {
     }
     if (next.jump !== this.pressed.jump) {
       this.pressed.jump = next.jump
-      this.drawButton(this.jump, this.jumpCenter, next.jump)
+      this.drawButton(this.jump, this.jumpCenter, next.jump, BUTTON_RADIUS)
     }
     if (next.fire !== this.pressed.fire) {
       this.pressed.fire = next.fire
-      this.drawButton(this.fire, this.fireCenter, next.fire)
+      this.drawButton(this.fire, this.fireCenter, next.fire, BUTTON_RADIUS)
+    }
+    if (next.dash !== this.pressed.dash) {
+      this.pressed.dash = next.dash
+      this.drawButton(this.dash, this.dashCenter, next.dash, TOOL_RADIUS)
+    }
+    if (next.melee !== this.pressed.melee) {
+      this.pressed.melee = next.melee
+      this.drawButton(this.melee, this.meleeCenter, next.melee, TOOL_RADIUS)
     }
   }
 
@@ -228,12 +293,13 @@ export class TouchControls {
     graphics: Phaser.GameObjects.Graphics,
     center: Phaser.Math.Vector2,
     pressed: boolean,
+    radius: number,
   ): void {
     graphics.clear()
     graphics.fillStyle(FILL, pressed ? FILL_ALPHA_DOWN : FILL_ALPHA)
-    graphics.fillCircle(center.x, center.y, BUTTON_RADIUS)
+    graphics.fillCircle(center.x, center.y, radius)
     graphics.lineStyle(4, FILL, LINE_ALPHA)
-    graphics.strokeCircle(center.x, center.y, BUTTON_RADIUS)
+    graphics.strokeCircle(center.x, center.y, radius)
   }
 
   private destroy(): void {

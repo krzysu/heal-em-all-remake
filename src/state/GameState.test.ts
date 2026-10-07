@@ -63,4 +63,43 @@ describe('GameStateStore', () => {
     expect(() => store.completeRun({ stars: 2, nextLevel: 2 })).not.toThrow()
     setItem.mockRestore()
   })
+
+  it('hands out one tool per room and keeps it', async () => {
+    const store = await freshStore()
+    store.load()
+    expect(store.hasAbility('doubleJump')).toBe(false)
+
+    store.startRun(1)
+    store.completeRun({ stars: 3, nextLevel: 2 })
+    expect(store.lastUnlocked).toBe('doubleJump')
+    expect(store.hasAbility('doubleJump')).toBe(true)
+    expect(localStorage.getItem(STORAGE_KEYS.abilities)).toBe('doubleJump')
+
+    store.startRun(2)
+    store.completeRun({ stars: 3, nextLevel: 3 })
+    expect(store.lastUnlocked).toBe('dash')
+    expect(store.unlockedAbilities()).toEqual(['doubleJump', 'dash'])
+  })
+
+  it('only announces a tool the first time, but replays keep it', async () => {
+    const store = await freshStore()
+    store.load()
+    store.startRun(1)
+    store.completeRun({ stars: 3, nextLevel: 2 })
+    store.startRun(1)
+    store.completeRun({ stars: 1, nextLevel: 2 })
+
+    expect(store.lastUnlocked).toBeNull()
+    expect(store.hasAbility('doubleJump')).toBe(true)
+    expect(store.unlockedAbilities()).toEqual(['doubleJump'])
+  })
+
+  it('restores unlocked tools from storage and drops unknown entries', async () => {
+    const store = await freshStore()
+    localStorage.setItem(STORAGE_KEYS.abilities, 'doubleJump, dash ,not-a-tool')
+    store.load()
+
+    expect(store.unlockedAbilities()).toEqual(['doubleJump', 'dash'])
+    expect(store.hasAbility('melee')).toBe(false)
+  })
 })

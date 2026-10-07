@@ -1,4 +1,4 @@
-import { TILE_SIZE } from '../config'
+import { LEVEL_SET, TILE_SIZE } from '../config'
 import type { TmxMap } from './tmx'
 
 /**
@@ -37,6 +37,8 @@ export interface LevelSpawns {
   player: Point
   zombies: ZombieSpawn[]
   items: ItemSpawn[]
+  /** Optional line the room wants the doctor to say on entry. */
+  hint?: string
 }
 
 /** Mirrors the original `Q.tilePos(col, row)`: centre of a tile, supports .5. */
@@ -142,14 +144,34 @@ const ITEM_KINDS: Record<string, ItemKind> = {
   sign: 'exit_sign',
 }
 
-function spawnsFromObjects(tmx: TmxMap): { zombies: ZombieSpawn[]; items: ItemSpawn[] } {
+const ARCHETYPE_IDS: Record<string, EnemyArchetype> = {
+  walker: 'walker',
+  runner: 'runner',
+  brute: 'brute',
+  spitter: 'spitter',
+}
+
+/**
+ * Spawns declared in the map win: the room set (`screen*.tmx`) carries its own
+ * `player` object, an `archetype` per zombie and a `hint` line, so a level
+ * designer authors a room without touching code. The legacy tables below stay
+ * only for the classic scrolling maps.
+ */
+function spawnsFromObjects(tmx: TmxMap): {
+  zombies: ZombieSpawn[]
+  items: ItemSpawn[]
+  player?: Point
+  hint?: string
+} {
   const zombies: ZombieSpawn[] = []
   for (const obj of tmx.objects['enemies'] ?? []) {
     if (obj.name.toLowerCase() !== 'zombie') continue
+    const archetype = ARCHETYPE_IDS[obj.properties['archetype']?.toLowerCase() ?? '']
     zombies.push({
       x: obj.x + tmx.tileWidth / 2,
       y: obj.y + tmx.tileHeight / 2,
       startLeft: obj.properties['startLeft'] === 'true',
+      ...(archetype ? { archetype } : {}),
     })
   }
 
@@ -169,26 +191,44 @@ function spawnsFromObjects(tmx: TmxMap): { zombies: ZombieSpawn[]; items: ItemSp
     items.push(spawn)
   }
 
-  return { zombies, items }
+  const playerObject = (tmx.objects['player'] ?? [])[0]
+  const player: Point | undefined = playerObject
+    ? { x: playerObject.x + tmx.tileWidth / 2, y: playerObject.y + tmx.tileHeight / 2 }
+    : undefined
+
+  return { zombies, items, ...(player ? { player } : {}), ...hintOf(playerObject) }
+}
+
+function hintOf(obj: { properties: Record<string, string> } | undefined): { hint?: string } {
+  const hint = obj?.properties['hint']
+  return hint ? { hint } : {}
 }
 
 export function getLevelSpawns(level: number, tmx: TmxMap): LevelSpawns {
-  const player = PLAYER_START[level] ?? tilePos(3, 9)
-  const override = SPAWN_OVERRIDES[level]
-  const base = override ?? spawnsFromObjects(tmx)
+  const fromMap = spawnsFromObjects(tmx)
+  const override = LEVEL_SET === 'classic' ? SPAWN_OVERRIDES[level] : undefined
+  const base = override ?? fromMap
+  const player = fromMap.player ?? PLAYER_START[level] ?? tilePos(3, 9)
 
   // Copy the spawns so the archetype assignment never mutates the tables above.
   const zombies = base.zombies.map((spawn) => Object.assign({}, spawn))
-  const archetypes = archetypeList(level, zombies.length)
-  zombies.forEach((spawn, index) => {
-    spawn.archetype = archetypes[index] ?? 'walker'
-  })
+  const undeclared = zombies.filter((spawn) => !spawn.archetype).length
+  const archetypes = archetypeList(level, undeclared)
+  let next = 0
+  for (const spawn of zombies) {
+    if (spawn.archetype) continue
+    spawn.archetype = archetypes[next] ?? 'walker'
+    next += 1
+  }
 
   return {
     player,
     zombies,
     items:
-      level === 5 ? level5Items(base.items) : base.items.map((item) => Object.assign({}, item)),
+      level === 5 && LEVEL_SET === 'classic'
+        ? level5Items(base.items)
+        : base.items.map((item) => Object.assign({}, item)),
+    ...hintOf(tmx.objects['player']?.[0]),
   }
 }
 

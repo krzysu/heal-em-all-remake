@@ -1,5 +1,14 @@
 import Phaser from 'phaser'
-import { ASSETS, ASSET_BASE, COLORS, FONTS, GAME_WIDTH, TILE_SIZE, TOTAL_LEVELS } from '../config'
+import {
+  ASSETS,
+  ASSET_BASE,
+  COLORS,
+  FONTS,
+  GAME_WIDTH,
+  LEVEL_MAP_PATH,
+  TILE_SIZE,
+  TOTAL_LEVELS,
+} from '../config'
 import { registerLegacyAtlas } from '../assets/legacyAtlas'
 import { registerAnimations } from '../assets/animations'
 import { createMenuFrame } from '../ui/layout'
@@ -54,9 +63,10 @@ export class PreloadScene extends Phaser.Scene {
       this.load.audio(key, `${ASSET_BASE}/${path}`)
     }
 
-    // Maps stay as the original TMX; GameScene parses the XML at runtime.
+    // Maps stay as the original TMX; GameScene parses the XML at runtime. The
+    // campaign's map set is `LEVEL_SET` (single-screen rooms by default).
     for (let level = 1; level <= TOTAL_LEVELS; level++) {
-      this.load.text(`level${level}`, `${ASSET_BASE}/${ASSETS.levels(level)}`)
+      this.load.text(`level${level}`, `${ASSET_BASE}/${LEVEL_MAP_PATH(level)}`)
     }
   }
 

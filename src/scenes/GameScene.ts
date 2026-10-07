@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { COLORS, TILE_SIZE, TUNING, WORLD_ZOOM } from '../config'
+import { COLORS, LEVEL_SET, SCREEN, TILE_SIZE, TUNING, WORLD_ZOOM } from '../config'
 import { bus, Events, GameState, type RunState } from '../state/GameState'
 import { touchInput } from '../ui/touchInput'
 import { navigate } from '../ui/navigation'
@@ -7,9 +7,10 @@ import { Player, type PlayerMode } from '../entities/Player'
 import { Zombie } from '../entities/Zombie'
 import { Human } from '../entities/Human'
 import { DeadZombie } from '../entities/DeadZombie'
-import { Bullet } from '../entities/Bullet'
+import { Bullet, type BulletOptions } from '../entities/Bullet'
 import { Spit } from '../entities/Spit'
 import { Item } from '../entities/Item'
+import { ABILITY_LADDER, abilitiesBeforeLevel, type AbilityId } from '../levels/abilities'
 import { parseTmx, toTileIndices, type TmxMap } from '../levels/tmx'
 import { getLevelSpawns, type ItemSpawn, type Point, type ZombieSpawn } from '../levels/levels'
 
@@ -21,6 +22,10 @@ import { getLevelSpawns, type ItemSpawn, type Point, type ZombieSpawn } from '..
  * plus a decoration layer, then entities spawned from the per-level tables in
  * `levels.ts`. Interactions are wired by hand in `update()` rather than through
  * physics groups so each one is explicit and cheap.
+ *
+ * In room mode (`LEVEL_SET === 'screens'`) a level is one 20x12 board: the
+ * camera is fitted to it and never scrolls, and the run's tools come from the
+ * ladder in `levels/abilities.ts`.
  */
 export class GameScene extends Phaser.Scene {
   private level = 1
@@ -30,6 +35,7 @@ export class GameScene extends Phaser.Scene {
   private mapHeightPx = 0
   private backdrop!: Phaser.GameObjects.Image
   private safePoint!: Point
+  private tools: Set<AbilityId> = new Set()
 
   private player!: Player
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
@@ -54,6 +60,11 @@ export class GameScene extends Phaser.Scene {
   private doorPrompted = false
   private finished = false
   private jumpQueued = false
+  private dashQueued = false
+  private meleeQueued = false
+  private chargeStartedAt = 0
+  private chargeSpent = false
+  private nextMeleeAt = 0
   private music?: Phaser.Sound.BaseSound
   private zombieMusic?: Phaser.Sound.BaseSound | undefined
 
@@ -64,6 +75,7 @@ export class GameScene extends Phaser.Scene {
   create(data: { level?: number }): void {
     this.level = data.level ?? 1
     this.run = GameState.startRun(this.level)
+    this.tools = this.buildTools()
     this.resetCollections()
     this.ensureSparkTexture()
     // Hit-stop slows the sim; never inherit a slowed world from a restart.
@@ -78,14 +90,17 @@ export class GameScene extends Phaser.Scene {
 
     this.tmx = parseTmx(xml)
     this.buildLevel()
-    this.spawnEntities(getLevelSpawns(this.level, this.tmx))
+    const spawns = getLevelSpawns(this.level, this.tmx)
+    this.spawnEntities(spawns)
     this.bindInput()
 
     this.scene.launch('Hud', { level: this.level })
     this.publishRunState()
     // `scene.launch` is queued until the next frame, so the HUD is not
     // subscribed yet when `create` runs. Delay the intro so it shows up.
-    this.time.delayedCall(30, () => bus.emit(Events.info, 'I need to find the way out of here'))
+    this.time.delayedCall(30, () =>
+      bus.emit(Events.info, spawns.hint ?? 'I need to find the way out of here'),
+    )
 
     this.music = this.sound.add('playerBg', { loop: true, volume: 0.4 })
     this.music.play()
@@ -108,8 +123,14 @@ export class GameScene extends Phaser.Scene {
     }
 
     const jumpPressed = this.jumpQueued || touchInput.jumpQueued
+    const dashPressed = this.dashQueued || touchInput.dashQueued
+    const meleePressed = this.meleeQueued || touchInput.meleeQueued
     this.jumpQueued = false
+    this.dashQueued = false
+    this.meleeQueued = false
     touchInput.jumpQueued = false
+    touchInput.dashQueued = false
+    touchInput.meleeQueued = false
 
     // Original jump inputs are up / X ('action'); space fires, so it must not
     // also count as held-jump or firing would siphon jump height. Touch controls
@@ -123,10 +144,12 @@ export class GameScene extends Phaser.Scene {
         right: this.cursors.right.isDown || this.keyD.isDown || touchInput.right,
         jumpPressed,
         jumpHeld,
+        dashPressed,
       },
       time,
     )
 
+    this.handleMelee(time, meleePressed)
     this.handleWeapon(time)
     this.updateItems()
     this.updateZombies(time)
@@ -137,6 +160,49 @@ export class GameScene extends Phaser.Scene {
     this.handleDoor(jumpPressed)
     this.checkFallOut(time)
     this.updateSafePoint(time)
+  }
+
+  // ----------------------------------------------------------- abilities ---
+
+  /**
+   * The tools this run owns: everything already unlocked, plus everything the
+   * earlier rooms hand out (a save can never be stuck in a room whose barrier
+   * needs a tool it does not have). The classic maps were built for the full
+   * kit, so they always get all of it.
+   */
+  private buildTools(): Set<AbilityId> {
+    const tools = new Set<AbilityId>(GameState.unlockedAbilities())
+    for (const ability of abilitiesBeforeLevel(this.level)) tools.add(ability)
+    if (LEVEL_SET === 'classic') for (const ability of ABILITY_LADDER) tools.add(ability)
+    return tools
+  }
+
+  /**
+   * Melee stun: a close-range cure that costs no ammo. Needs the tool, has a
+   * cooldown, and only reaches a zombie in front of the doctor.
+   */
+  private handleMelee(time: number, pressed: boolean): void {
+    if (!pressed || !this.tools.has('melee')) return
+    if (this.player.isZombie || time < this.nextMeleeAt) return
+
+    this.nextMeleeAt = time + TUNING.meleeCooldownMs
+    const reachX = this.player.x + this.player.facing * TUNING.meleeRange
+    this.burst(reachX, this.player.y + 6, 0xc4da4a, 6)
+
+    let struck = false
+    for (const zombie of this.zombies) {
+      if (!zombie.active) continue
+      const ahead = (zombie.x - this.player.x) * this.player.facing
+      if (ahead < 0 || ahead > TUNING.meleeRange) continue
+      if (Math.abs(zombie.y - this.player.y) > TILE_SIZE) continue
+
+      struck = true
+      zombie.hit()
+      this.setHitStop(time, 40)
+      break
+    }
+
+    if (!struck) bus.emit(Events.info, 'Nothing in reach')
   }
 
   // ---------------------------------------------------------------- level ---
@@ -155,7 +221,17 @@ export class GameScene extends Phaser.Scene {
     this.doorPrompted = false
     this.finished = false
     this.jumpQueued = false
+    this.dashQueued = false
+    this.meleeQueued = false
+    this.chargeStartedAt = 0
+    this.chargeSpent = false
+    this.nextMeleeAt = 0
     this.zombieMusic = undefined
+  }
+
+  /** True when the campaign plays the single-screen rooms. */
+  private get isRoom(): boolean {
+    return LEVEL_SET === 'screens'
   }
 
   private buildLevel(): void {
@@ -204,14 +280,8 @@ export class GameScene extends Phaser.Scene {
     // No bottom edge: falling off the map has to actually leave the world so
     // `checkFallOut` can respawn the player (and end Zombie Mode).
     this.physics.world.setBounds(0, 0, worldWidth, this.mapHeightPx, true, true, true, false)
-    this.cameras.main.setBounds(0, 0, worldWidth, this.mapHeightPx)
     this.cameras.main.setBackgroundColor(COLORS.bg)
     this.cameras.main.roundPixels = true
-    // Show the level at the original's framing: the design space is 1080 tall
-    // but the world wants a much closer view, so the camera carries the zoom and
-    // every world coordinate (spawns, physics, tiles) stays in level pixels.
-    const zoom = WORLD_ZOOM
-    this.cameras.main.setZoom(zoom)
 
     // Full-view graveyard backdrop, matching the menus. It is a scroll-factor-0
     // image, so under camera zoom it maps 1:1 to screen space: position it at the
@@ -222,13 +292,56 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setAlpha(0.5)
       .setDepth(-100)
-    this.syncBackdrop(zoom)
 
-    const onResize = (): void => this.syncBackdrop(zoom)
+    const onResize = (): void => {
+      if (this.isRoom) this.fitRoomCamera(worldWidth, this.mapHeightPx)
+      else {
+        this.cameras.main.setBounds(0, 0, worldWidth, this.mapHeightPx)
+        this.cameras.main.setZoom(WORLD_ZOOM)
+        this.syncBackdrop(WORLD_ZOOM)
+      }
+    }
+
+    if (this.isRoom) {
+      // Single-screen room: the whole board is on screen at once and the camera
+      // never scrolls (no follow). Bounds are padded, so a centred camera can
+      // never clamp and drift.
+      this.fitRoomCamera(worldWidth, this.mapHeightPx)
+    } else {
+      this.cameras.main.setBounds(0, 0, worldWidth, this.mapHeightPx)
+      // Show the level at the original's framing: the design space is 1080 tall
+      // but the world wants a much closer view, so the camera carries the zoom
+      // and every world coordinate (spawns, physics, tiles) stays in level pixels.
+      this.cameras.main.setZoom(WORLD_ZOOM)
+      this.syncBackdrop(WORLD_ZOOM)
+    }
+
     this.scale.on(Phaser.Scale.Events.RESIZE, onResize)
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, onResize)
     })
+  }
+
+  /**
+   * Frames a single-screen room: the zoom fits the whole board inside the live
+   * viewport (the canvas grows under `Scale.EXPAND`), capped so the art never
+   * grows beyond the classic world framing, and the camera is parked on the
+   * middle of the board.
+   */
+  private fitRoomCamera(worldWidth: number, worldHeight: number): void {
+    const camera = this.cameras.main
+    camera.setBounds(
+      -SCREEN.pad,
+      -SCREEN.pad,
+      worldWidth + SCREEN.pad * 2,
+      worldHeight + SCREEN.pad * 2,
+    )
+
+    const fit = Math.min(this.scale.width / worldWidth, this.scale.height / worldHeight)
+    const zoom = Math.min(fit * SCREEN.fit, WORLD_ZOOM)
+    camera.setZoom(zoom)
+    camera.centerOn(worldWidth / 2, worldHeight / 2)
+    this.syncBackdrop(zoom)
   }
 
   /** Covers the zoomed view with the graveyard art, centred on screen. */
@@ -246,8 +359,11 @@ export class GameScene extends Phaser.Scene {
     this.safePoint = { ...spawns.player }
 
     this.player = new Player(this, spawns.player.x, spawns.player.y)
+    this.player.setTools(this.tools)
     this.physics.add.collider(this.player, this.solids)
-    this.cameras.main.startFollow(this.player, true, 0.12, 0.12)
+    // A room never scrolls: the camera stays parked on the board, so only the
+    // classic scrolling levels follow the doctor.
+    if (!this.isRoom) this.cameras.main.startFollow(this.player, true, 0.12, 0.12)
 
     for (const spawn of spawns.zombies) this.spawnZombie(spawn)
     for (const spawn of spawns.items) this.spawnItem(spawn)
@@ -326,6 +442,7 @@ export class GameScene extends Phaser.Scene {
       this.spawnDeadZombie(x, y)
     } else {
       this.spawnHuman(x, y)
+      this.chainCure(x, y)
     }
   }
 
@@ -361,14 +478,27 @@ export class GameScene extends Phaser.Scene {
     // space/Z = 'fire'. Space therefore shoots, not jumps. WASD is an extra.
     this.keyFire = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
     this.keyFireZ = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z)
+    // Tools have their own keys: dash on Shift/C, melee on S/F. Keyboard and
+    // touch write the same edge-triggered queue, like jump does, so neither
+    // needs a held key object.
 
     // Queue the press from the event so a tap between two frames is never lost.
     const queueJump = (): void => {
       this.jumpQueued = true
     }
+    const queueDash = (): void => {
+      this.dashQueued = true
+    }
+    const queueMelee = (): void => {
+      this.meleeQueued = true
+    }
     keyboard.on('keydown-UP', queueJump)
     keyboard.on('keydown-X', queueJump)
     keyboard.on('keydown-W', queueJump)
+    keyboard.on('keydown-SHIFT', queueDash)
+    keyboard.on('keydown-C', queueDash)
+    keyboard.on('keydown-S', queueMelee)
+    keyboard.on('keydown-F', queueMelee)
 
     keyboard.on('keydown-ESC', () => navigate(this, 'LevelSelect'))
     keyboard.on('keydown-R', () => this.scene.restart({ level: this.level }))
@@ -387,12 +517,36 @@ export class GameScene extends Phaser.Scene {
 
   private handleWeapon(time: number): void {
     if (!this.player.armed || this.player.isZombie) return
-    if (
-      !(this.keyFire.isDown || this.keyFireZ.isDown || touchInput.fireHeld) ||
-      time < this.nextFireAt
-    ) {
+
+    const firing = this.keyFire.isDown || this.keyFireZ.isDown || touchInput.fireHeld
+
+    if (!firing) {
+      // Release: with the charge tool a quick tap still fires a normal round.
+      if (this.chargeStartedAt > 0 && !this.chargeSpent) this.fire(time, false)
+      this.chargeStartedAt = 0
+      this.chargeSpent = false
       return
     }
+
+    if (!this.tools.has('charge')) {
+      if (time >= this.nextFireAt) this.fire(time, false)
+      return
+    }
+
+    if (this.chargeStartedAt === 0) {
+      this.chargeStartedAt = time
+      return
+    }
+
+    if (!this.chargeSpent && time - this.chargeStartedAt >= TUNING.chargeMs) {
+      this.chargeSpent = true
+      this.fire(time, true)
+    }
+  }
+
+  /** One trigger pull: one round, a fan with the spread tool, heavy when charged. */
+  private fire(time: number, charged: boolean): void {
+    if (time < this.nextFireAt) return
 
     if (this.run.bullets <= 0) {
       this.nextFireAt = time + TUNING.fireCooldownMs
@@ -400,16 +554,26 @@ export class GameScene extends Phaser.Scene {
       return
     }
 
-    this.nextFireAt = time + TUNING.fireCooldownMs
+    this.nextFireAt = time + TUNING.fireCooldownMs * (charged ? 2 : 1)
     this.run.bullets -= 1
     bus.emit(Events.bulletsChanged, this.run.bullets)
     this.sound.play('gunShot', { volume: 0.5 })
 
     const muzzleX = this.player.x + this.player.facing * 15
     this.muzzleFlash(muzzleX, this.player.y + 3, this.player.facing)
-    this.cameras.main.shake(50, 0.0025)
+    this.cameras.main.shake(charged ? 110 : 50, charged ? 0.006 : 0.0025)
 
-    const bullet = Bullet.spawnFor(this, this.player)
+    const shots: BulletOptions[] = charged
+      ? [{ power: TUNING.heavyPower, heavy: true }]
+      : this.tools.has('spread')
+        ? [{ angleDeg: -TUNING.spreadAngleDeg }, {}, { angleDeg: TUNING.spreadAngleDeg }]
+        : [{}]
+
+    for (const shot of shots) this.spawnBullet(shot)
+  }
+
+  private spawnBullet(options: BulletOptions): void {
+    const bullet = Bullet.spawnFor(this, this.player, options)
     this.bullets.push(bullet)
 
     const solidCollider = this.physics.add.collider(bullet, this.solids, () => bullet.dissipate())
@@ -420,6 +584,27 @@ export class GameScene extends Phaser.Scene {
       this.physics.world.removeCollider(solidCollider)
       this.bullets = this.bullets.filter((entry) => entry !== bullet)
     })
+  }
+
+  /**
+   * Chain cure: a fresh human's cure jumps to any zombie touching him, so a
+   * packed row can be cleared from one dose. Three hops, so a big crowd cannot
+   * cascade the whole room in one shot.
+   */
+  private chainCure(x: number, y: number, hop = 0): void {
+    if (!this.tools.has('chain') || this.finished || hop >= 3) return
+
+    const radius = TUNING.chainRadius
+    const touching = this.zombies.filter(
+      (zombie) => zombie.active && Phaser.Math.Distance.Between(x, y, zombie.x, zombie.y) <= radius,
+    )
+    for (const zombie of touching) {
+      this.burst(zombie.x, zombie.y, 0x8bd450, 6)
+      const x2 = zombie.x
+      const y2 = zombie.y
+      if (!zombie.hit()) continue
+      this.chainCure(x2, y2, hop + 1)
+    }
   }
 
   private updateItems(): void {
@@ -458,8 +643,13 @@ export class GameScene extends Phaser.Scene {
         if (!this.physics.overlap(bullet, zombie)) continue
 
         hit = true
+        const power = bullet.power
         bullet.consume()
-        zombie.hit()
+        // A charged round lands several hits, which is what punches armour.
+        for (let landed = 0; landed < power; landed++) {
+          if (!zombie.active) break
+          if (zombie.hit()) break
+        }
         break
       }
       if (hit) continue

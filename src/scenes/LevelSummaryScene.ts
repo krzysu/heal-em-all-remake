@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { COLORS, FONTS, GAME_WIDTH, TOTAL_LEVELS } from '../config'
 import { GameState } from '../state/GameState'
+import { ABILITY_INFO, ROOM_NAMES } from '../levels/abilities'
 import { createMenuFrame } from '../ui/layout'
 import { createTextButton } from '../ui/buttons'
 import { navigate } from '../ui/navigation'
@@ -52,6 +53,43 @@ export class LevelSummaryScene extends Phaser.Scene {
         })
         .setOrigin(0.5),
     )
+
+    const roomName = ROOM_NAMES[level]
+    if (roomName) {
+      root.add(
+        this.add
+          .text(GAME_WIDTH / 2, FRAME.titleY + 84, `Room ${level} - ${roomName}`, {
+            fontFamily: FONTS.body,
+            fontSize: `${TYPE.caption}px`,
+            color: COLORS.muted,
+          })
+          .setOrigin(0.5),
+      )
+    }
+
+    // The room's reward: the tool this completion handed out, if it was new.
+    const unlocked = GameState.lastUnlocked
+    if (unlocked) {
+      const info = ABILITY_INFO[unlocked]
+      root.add(
+        this.add
+          .text(GAME_WIDTH / 2, FRAME.titleY + 152, `NEW SKILL: ${info.name.toUpperCase()}`, {
+            fontFamily: FONTS.title,
+            fontSize: `${TYPE.heading}px`,
+            color: COLORS.accent,
+          })
+          .setOrigin(0.5),
+      )
+      root.add(
+        this.add
+          .text(GAME_WIDTH / 2, FRAME.titleY + 198, info.blurb, {
+            fontFamily: FONTS.body,
+            fontSize: `${TYPE.caption}px`,
+            color: COLORS.accent,
+          })
+          .setOrigin(0.5),
+      )
+    }
 
     // Only the rows the original had data for are rendered, exactly as its
     // `if stage.options.<metric>` guards did.

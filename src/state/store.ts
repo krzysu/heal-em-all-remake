@@ -1,4 +1,5 @@
 import { STORAGE_KEYS, TOTAL_LEVELS } from '../config'
+import { abilityForLevel, isAbilityId, type AbilityId } from '../levels/abilities'
 
 /** Snapshot of everything a level needs to report on the summary screen. */
 export interface RunState {
@@ -32,6 +33,21 @@ function readInt(key: string, fallback: number): number {
   }
 }
 
+function readAbilities(key: string): AbilityId[] {
+  try {
+    const raw = localStorage.getItem(key)
+    if (raw === null) return []
+    const out: AbilityId[] = []
+    for (const entry of raw.split(',')) {
+      const value = entry.trim()
+      if (isAbilityId(value)) out.push(value)
+    }
+    return out
+  } catch {
+    return []
+  }
+}
+
 /**
  * Progress and run state. Deliberately free of Phaser imports so it stays a
  * plain, unit-testable store; the event bus lives in `GameState.ts`.
@@ -40,7 +56,12 @@ class GameStateStore {
   /** Highest level the player may enter. */
   availableLevel = 1
 
+  /** Tool handed out by the run that just finished, for the summary screen. */
+  lastUnlocked: AbilityId | null = null
+
   private readonly stars = new Map<number, number>()
+
+  private readonly abilities = new Set<AbilityId>()
 
   private run: RunState | null = null
 
@@ -51,6 +72,9 @@ class GameStateStore {
     for (let level = 1; level <= TOTAL_LEVELS; level++) {
       this.stars.set(level, readInt(`${STORAGE_KEYS.levelProgress}:${level}`, 0))
     }
+
+    this.abilities.clear()
+    for (const ability of readAbilities(STORAGE_KEYS.abilities)) this.abilities.add(ability)
   }
 
   starsFor(level: number): number {
@@ -61,7 +85,16 @@ class GameStateStore {
     return level <= this.availableLevel
   }
 
+  hasAbility(ability: AbilityId): boolean {
+    return this.abilities.has(ability)
+  }
+
+  unlockedAbilities(): AbilityId[] {
+    return [...this.abilities]
+  }
+
   startRun(level: number): RunState {
+    this.lastUnlocked = null
     this.run = {
       level,
       lives: 3,
@@ -99,6 +132,19 @@ class GameStateStore {
       this.availableLevel = Math.min(result.nextLevel, TOTAL_LEVELS)
       this.save(STORAGE_KEYS.availableLevel, String(this.availableLevel))
     }
+
+    this.grantAbility(run.level)
+  }
+
+  /** Finishing a room hands out its tool once, and only once. */
+  private grantAbility(level: number): void {
+    this.lastUnlocked = null
+    const ability = abilityForLevel(level)
+    if (!ability || this.abilities.has(ability)) return
+
+    this.abilities.add(ability)
+    this.lastUnlocked = ability
+    this.save(STORAGE_KEYS.abilities, this.unlockedAbilities().join(','))
   }
 
   private save(key: string, value: string): void {

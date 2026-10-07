@@ -1,11 +1,13 @@
 import Phaser from 'phaser'
 import { TUNING } from '../config'
+import type { AbilityId } from '../levels/abilities'
 
 export interface PlayerInput {
   left: boolean
   right: boolean
   jumpPressed: boolean
   jumpHeld: boolean
+  dashPressed?: boolean
 }
 
 export type PlayerMode = 'doctor' | 'zombie'
@@ -18,6 +20,10 @@ export type PlayerMode = 'doctor' | 'zombie'
  * original's speed (330) and reach. Zombie Mode swaps the sprite, drops the
  * gun and the double jump, and slows him down — a temporary, disempowering
  * state he has to escape by falling off the map.
+ *
+ * The double jump and the dash are tools, not starting abilities: the rooms
+ * hand them out (see `levels/abilities.ts`), so `setTools` decides what this
+ * run may do.
  */
 export class Player extends Phaser.Physics.Arcade.Sprite {
   declare body: Phaser.Physics.Arcade.Body
@@ -30,6 +36,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   /** True once the player has come back from Zombie Mode this run. */
   wasZombie = false
 
+  private tools: ReadonlySet<AbilityId> = new Set()
   private lastGroundedAt = Number.NEGATIVE_INFINITY
   private jumpQueuedAt = Number.NEGATIVE_INFINITY
   private jumpsUsed = 0
@@ -37,6 +44,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private invincibleUntil = 0
   private hurtUntil = 0
   private zombieReady = false
+  private dashUntil = 0
+  private dashReadyAt = 0
+  private dashDirection: 1 | -1 = 1
+  private dashesUsed = 0
 
   /** Set by the scene: spawns a bullet at the muzzle. */
   onFire?: (x: number, y: number, direction: 1 | -1) => void
@@ -55,6 +66,29 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.play('player:stand')
   }
 
+  /** Tools this run owns. Set once, on level create. */
+  setTools(tools: ReadonlySet<AbilityId>): void {
+    this.tools = tools
+  }
+
+  get hasDash(): boolean {
+    return this.tools.has('dash') && !this.isZombie
+  }
+
+  get isDashing(): boolean {
+    return this.scene.time.now < this.dashUntil
+  }
+
+  /** Jumps allowed before touching the ground: 2 only with the double jump. */
+  get maxJumps(): number {
+    if (this.isZombie) return TUNING.zombiePlayerMaxJumps
+    return this.tools.has('doubleJump') ? TUNING.maxJumps : 1
+  }
+
+  get isOnGround(): boolean {
+    return this.body.blocked.down || this.body.touching.down
+  }
+
   get isZombie(): boolean {
     return this.mode === 'zombie'
   }
@@ -63,21 +97,54 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     return this.scene.time.now < this.invincibleUntil
   }
 
+  /**
+   * Air dash: a short burst with i-frames, one per airtime, on a cooldown.
+   * In the air it cancels the fall, so the doctor floats across the rift the
+   * later rooms are built around. Returns true when the dash actually started.
+   */
+  dash(time: number, direction: 1 | -1): boolean {
+    if (!this.hasDash || time < this.dashReadyAt) return false
+    if (!this.isOnGround && this.dashesUsed >= 1) return false
+
+    this.dashDirection = direction
+    this.dashUntil = time + TUNING.dashMs
+    this.dashReadyAt = time + TUNING.dashCooldownMs
+    this.invincibleUntil = Math.max(this.invincibleUntil, time + TUNING.dashInvincibleMs)
+    this.setVelocityX(direction * TUNING.dashSpeed)
+    if (!this.isOnGround) this.setVelocityY(Math.min(this.body.velocity.y, 0))
+    this.setFlipX(direction < 0)
+    this.facing = direction < 0 ? -1 : 1
+    this.dashesUsed += 1
+    return true
+  }
+
   move(input: PlayerInput, time: number): void {
-    const onFloor = this.body.blocked.down || this.body.touching.down
+    const onFloor = this.isOnGround
     if (onFloor) {
       this.lastGroundedAt = time
       this.jumpsUsed = 0
       this.jumpCutApplied = false
+      this.dashesUsed = 0
     }
 
     const controllable = !this.isZombie || this.zombieReady
 
+    if (this.isDashing) {
+      // The dash owns horizontal motion for its duration.
+      this.setVelocityX(this.dashDirection * TUNING.dashSpeed)
+      this.updateAnimation(onFloor, time)
+      return
+    }
+
     if (controllable && input.jumpPressed) this.jumpQueuedAt = time
+    if (controllable && input.dashPressed) {
+      const toward = (input.right ? 1 : 0) - (input.left ? 1 : 0)
+      this.dash(time, toward === 0 ? this.facing : toward < 0 ? -1 : 1)
+    }
 
     const speed = this.isZombie ? TUNING.zombiePlayerSpeed : TUNING.moveSpeed
     const jumpVelocity = this.isZombie ? TUNING.zombiePlayerJump : TUNING.jumpVelocity
-    const maxJumps = this.isZombie ? TUNING.zombiePlayerMaxJumps : TUNING.maxJumps
+    const maxJumps = this.maxJumps
 
     const direction = (input.right ? 1 : 0) - (input.left ? 1 : 0)
     if (controllable && direction !== 0) {
@@ -105,8 +172,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       const withinCoyote = onFloor || time - this.lastGroundedAt <= TUNING.coyoteTimeMs
       if (this.jumpsUsed === 0) {
         // Full-strength jump while grounded or inside the coyote window,
-        // otherwise the press spends the first jump as a weaker air jump.
-        this.performJump(withinCoyote ? jumpVelocity : TUNING.doubleJumpVelocity)
+        // otherwise the press spends the first jump as a weaker air jump. With
+        // no double jump that air jump does not exist: the press is dropped.
+        if (withinCoyote || maxJumps > 1) {
+          this.performJump(withinCoyote ? jumpVelocity : TUNING.doubleJumpVelocity)
+        }
       } else if (this.jumpsUsed < maxJumps) {
         this.performJump(TUNING.doubleJumpVelocity)
       }

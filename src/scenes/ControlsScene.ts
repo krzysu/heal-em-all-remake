@@ -87,6 +87,21 @@ export class ControlsScene extends Phaser.Scene {
     })
 
     root.add(
+      this.add
+        .text(
+          GAME_WIDTH / 2,
+          FRAME.contentY + 300,
+          'Move: arrows  ·  Jump: UP / X  ·  Shoot: Space / Z  ·  Dash: Shift / C  ·  Melee: S / F',
+          {
+            fontFamily: FONTS.body,
+            fontSize: `${TYPE.caption}px`,
+            color: COLORS.muted,
+          },
+        )
+        .setOrigin(0.5),
+    )
+
+    root.add(
       createTextButton(this, GAME_WIDTH / 2, FRAME.actionY, {
         label: 'Give me some zombies',
         width: BUTTON.primaryWidth,

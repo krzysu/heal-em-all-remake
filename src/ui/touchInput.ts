@@ -14,6 +14,9 @@ export interface TouchState {
   fireHeld: boolean
   /** Edge-triggered jump, consumed by `GameScene` like the keyboard queue. */
   jumpQueued: boolean
+  /** Edge-triggered dash / melee, same contract as `jumpQueued`. */
+  dashQueued: boolean
+  meleeQueued: boolean
 }
 
 export const touchInput: TouchState = {
@@ -22,6 +25,8 @@ export const touchInput: TouchState = {
   jumpHeld: false,
   fireHeld: false,
   jumpQueued: false,
+  dashQueued: false,
+  meleeQueued: false,
 }
 
 export function resetTouchInput(): void {
@@ -30,6 +35,8 @@ export function resetTouchInput(): void {
   touchInput.jumpHeld = false
   touchInput.fireHeld = false
   touchInput.jumpQueued = false
+  touchInput.dashQueued = false
+  touchInput.meleeQueued = false
 }
 
 /**
